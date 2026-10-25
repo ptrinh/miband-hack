@@ -92,8 +92,8 @@ export class XiaomiDevice {
   private readonly activity = new ActivityAssembler();
   private fileWaiter: { resolve: (b: Uint8Array) => void; reject: (e: unknown) => void; poke: () => void } | null = null;
 
-  constructor(readonly link: Link, authKey: Uint8Array) {
-    this.auth = new AuthSession(authKey);
+  constructor(readonly link: Link, authKey: Uint8Array, deviceId = '') {
+    this.auth = new AuthSession(authKey, true, deviceId);
     this.authDone.promise.catch(() => {}); // observed in connect(); avoid unhandled rejection on later disconnects
     link.log = (m) => this.onLog(m);
     link.onCommand = (b) => this.handleBytes(b);
@@ -186,7 +186,7 @@ export class XiaomiDevice {
       if (!dv) {
         // The raw reply (no key material: nonces and status codes only) tells why the band refused.
         this.onLog(`← auth reply without a watch nonce (${raw.length} bytes): ${hex(raw, 64)}`);
-        this.authDone.reject(new Error(t('errHandshake', { status: cmd.auth?.status ?? cmd.status ?? '?' })));
+        this.authDone.reject(new Error(t('errHandshake', { status: cmd.auth?.refusal ?? cmd.auth?.status ?? cmd.status ?? '?' })));
         return;
       }
       try {

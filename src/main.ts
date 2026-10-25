@@ -40,6 +40,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <h2><span class="step">1</span><span data-i18n="keyTitle"></span></h2>
       <label for="authkey" data-i18n="keyLabel"></label>
       <input id="authkey" type="password" placeholder="0x0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
+      <label for="deviceid" style="font-weight:400;color:var(--muted)" data-i18n="deviceIdLabel"></label>
+      <input id="deviceid" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="deviceIdPh" />
       <label class="check"><input type="checkbox" id="remember" /> <span data-i18n="remember"></span></label>
 
       <button class="primary" id="btn-qr" style="margin-top:14px;width:100%" data-i18n="qrBtn"></button>
@@ -248,6 +250,17 @@ function fmtSize(n: number): string {
   return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+/** The phone identity some bands need with the key (see AuthSession); remembered with the key. */
+const DEVICE_ID_STORAGE = 'miband-hack.device-id';
+const deviceIdStorage = {
+  get(): string | null {
+    try { return localStorage.getItem(DEVICE_ID_STORAGE); } catch { return null; }
+  },
+  set(v: string | null): void {
+    try { v ? localStorage.setItem(DEVICE_ID_STORAGE, v) : localStorage.removeItem(DEVICE_ID_STORAGE); } catch { /* storage blocked */ }
+  },
+};
+
 const storage = {
   get(): string | null {
     try { return localStorage.getItem(KEY_STORAGE); } catch { return null; }
@@ -281,8 +294,14 @@ function renderSupport(): void {
 function readKey(): Uint8Array {
   const raw = $<HTMLInputElement>('authkey').value;
   const key = parseAuthKey(raw);
-  storage.set($<HTMLInputElement>('remember').checked ? raw.trim() : null);
+  const remember = $<HTMLInputElement>('remember').checked;
+  storage.set(remember ? raw.trim() : null);
+  deviceIdStorage.set(remember ? readDeviceId() || null : null);
   return key;
+}
+
+function readDeviceId(): string {
+  return $<HTMLInputElement>('deviceid').value.trim();
 }
 
 async function connect(kind: 'spp' | 'ble'): Promise<void> {
@@ -305,7 +324,7 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
       const c = await requestBle();
       link = c.kind === 'v2' ? new StreamLink(c.transport, 'v2') : new BleV1Link(c.device, c.chars);
     }
-    const dev = new XiaomiDevice(link, key);
+    const dev = new XiaomiDevice(link, key, readDeviceId());
     dev.onLog = (m) => log(m, m.startsWith('✓') ? 'ok' : m.startsWith('⚠') ? 'e' : undefined);
     dev.onChange = () => render();
     dev.onDisconnect = () => {
@@ -501,6 +520,7 @@ if (saved) {
   $<HTMLInputElement>('authkey').value = saved;
   $<HTMLInputElement>('remember').checked = true;
 }
+$<HTMLInputElement>('deviceid').value = deviceIdStorage.get() ?? '';
 
 $('btn-spp').onclick = () => void connect('spp');
 $('btn-ble').onclick = () => void connect('ble');
@@ -817,7 +837,7 @@ $('btn-note-add').onclick = () => {
 interface CloudDevice { server: string; source?: 'mifitness' | 'mihome'; keyField?: string; name: string; model: string; did: string; mac?: string; key?: string }
 interface PollResult { status: string; devices?: CloudDevice[]; fitness?: { ok: boolean }; mihome?: { ok: boolean | null }; trail?: string[] }
 
-interface KeyRow { title: string; sub: string; key: string }
+interface KeyRow { title: string; sub: string; key: string; phoneId?: string }
 
 /** One "Use this key" row per key; band/cloud values only ever go through textContent. */
 function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
@@ -831,6 +851,7 @@ function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
     const valid = /^[0-9a-f]{32}$/i.test(r.key);
     const use = button(t('useKey'), async () => {
       $<HTMLInputElement>('authkey').value = r.key;
+      if (r.phoneId) $<HTMLInputElement>('deviceid').value = r.phoneId;
       head.textContent = t('keyFilledHead');
       toast(t('keyFilled', { name: r.title }));
       log(`Filled in key of ${r.title}`, 'ok');
@@ -974,7 +995,7 @@ $<HTMLInputElement>('mf-files').onchange = async (ev) => {
     }
     renderKeyRows(
       ul,
-      keys.map((k) => ({ title: k.name || k.model || 'Mi Fitness', sub: ['Mi Fitness', k.model, k.mac ?? k.did].filter(Boolean).join(' · '), key: k.key })),
+      keys.map((k) => ({ title: k.name || k.model || 'Mi Fitness', sub: ['Mi Fitness', k.model, k.mac ?? k.did].filter(Boolean).join(' · '), key: k.key, phoneId: k.phoneId })),
     );
   } catch (e) {
     ul.appendChild(emptyItem(t('iosError', { msg: (e as Error).message })));

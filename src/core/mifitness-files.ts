@@ -18,6 +18,8 @@ export interface FileKey {
   mac?: string;
   did?: string;
   key: string;
+  /** The phone's identity registered with the band (detail.phone_id); some bands need it in the handshake. */
+  phoneId?: string;
   /** e.g. registerList_de */
   entry: string;
 }
@@ -324,7 +326,9 @@ export function keysFromRegisterList(blob: Uint8Array, entry: string): FileKey[]
     const raw = str(d.encryptKey) ?? str(d.encrypt_key);
     const key = raw?.toLowerCase().replace(/^0x/, '');
     if (!key || !/^[0-9a-f]{32}$/.test(key)) continue;
-    out.push({ name: str(d.name) ?? '', model: str(d.model), mac: str(d.mac) ?? str(d.randomMac), did: d.did == null ? undefined : String(d.did), key, entry });
+    const detail = d.detail && typeof d.detail === 'object' && !Array.isArray(d.detail) && !(d.detail instanceof Uint8Array) ? (d.detail as Record<string, Plist>) : {};
+    const phoneId = str(detail.phone_id) ?? str(d.virtualAppID);
+    out.push({ name: str(d.name) ?? '', model: str(d.model), mac: str(d.mac) ?? str(d.randomMac), did: d.did == null ? undefined : String(d.did), key, ...(phoneId ? { phoneId } : {}), entry });
   }
   return out;
 }

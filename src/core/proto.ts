@@ -19,6 +19,9 @@ message Command {
 }
 
 message Account {
+  // Sent instead of a DeviceVerify when the band refuses step 1 (seen: 4 from a Mi Band 10 paired on an
+  // iPad when no deviceId was sent).
+  optional uint32 refusal = 3;
   optional string userId = 7;
   optional uint32 status = 8;
   optional AppVerify appVerify = 30;
@@ -155,6 +158,7 @@ export interface Command {
   type: number;
   subtype?: number;
   auth?: {
+    refusal?: number;
     userId?: string;
     status?: number;
     appVerify?: { nonce: Uint8Array; deviceId?: string };

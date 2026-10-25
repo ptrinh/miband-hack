@@ -1,7 +1,7 @@
 import { createCipheriv, createHmac, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { zipSync } from 'fflate';
-import { computeAuthStep3Hmac } from '../src/core/auth';
+import { AuthSession, computeAuthStep3Hmac } from '../src/core/auth';
 import { fromHex, hex } from '../src/core/bytes';
 import { crc16arc, crc32 } from '../src/core/checksum';
 import { aesCtr, ccmDecrypt, ccmEncrypt } from '../src/core/crypto';
@@ -106,6 +106,28 @@ describe('protobuf', () => {
     const cmd = decodeCommand(encodeCommand({ type: 22, subtype: 0, dataUpload: { dataUploadAck: { errno: 0, chunkSize: 4096, resumePosition: 0 } } }));
     expect(cmd.dataUpload?.dataUploadAck?.chunkSize).toBe(4096);
     expect(cmd.dataUpload?.dataUploadAck?.errno).toBe(0);
+  });
+});
+
+describe('auth step 1', () => {
+  it('reads the refusal a Mi Band 10 paired on an iPad sent when no deviceId was given', () => {
+    // Real reply: type 1, subtype 26, Account { 3: 4 } and no DeviceVerify.
+    const cmd = decodeCommand(fromHex('0801101a1a021804'));
+    expect(cmd.type).toBe(1);
+    expect(cmd.subtype).toBe(26);
+    expect(cmd.auth?.deviceVerify).toBeUndefined();
+    expect(cmd.auth?.refusal).toBe(4);
+  });
+
+  it('sends the deviceId (field 2 of AppVerify) only when one is set', () => {
+    const id = 'ABCDEF01-2345-6789-ABCD-EF0123456789_1234567890_A1B2C3D4E5F6';
+    const withId = decodeCommand(encodeCommand(new AuthSession(new Uint8Array(16), true, id).buildNonceCommand()));
+    expect(withId.auth?.appVerify?.deviceId).toBe(id);
+    const without = encodeCommand(new AuthSession(new Uint8Array(16)).buildNonceCommand());
+    expect(decodeCommand(without).auth?.appVerify?.deviceId ?? '').toBe('');
+    // Without one, AppVerify carries the nonce only: 2 bytes of tag + length, 16 bytes of nonce.
+    expect(decodeCommand(without).auth?.appVerify?.nonce?.length).toBe(16);
+    expect(without.length).toBe(encodeCommand({ type: 1, subtype: 26, auth: { appVerify: { nonce: new Uint8Array(16) } } }).length);
   });
 });
 

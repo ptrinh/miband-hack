@@ -36,10 +36,19 @@ export class AuthSession {
   private encNonce = new Uint8Array(4);
   private decNonce = new Uint8Array(4);
 
-  constructor(private readonly secretKey: Uint8Array, private readonly checkDecryptionMac = true) {}
+  /**
+   * deviceId: the phone's identity as registered with the band by Mi Fitness (`phone_id`). Bands paired
+   * from iOS (seen on a Mi Band 10) refuse step 1 without it, as Wear OS watches do in Gadgetbridge.
+   */
+  constructor(
+    private readonly secretKey: Uint8Array,
+    private readonly checkDecryptionMac = true,
+    private readonly deviceId = '',
+  ) {}
 
   buildNonceCommand(): Command {
-    return { type: AUTH_COMMAND_TYPE, subtype: CMD_NONCE, auth: { appVerify: { nonce: this.phoneNonce } } };
+    const appVerify = this.deviceId ? { nonce: this.phoneNonce, deviceId: this.deviceId } : { nonce: this.phoneNonce };
+    return { type: AUTH_COMMAND_TYPE, subtype: CMD_NONCE, auth: { appVerify } };
   }
 
   /** Handles the watch nonce; returns the step-2 command, or throws if the key is wrong. */
