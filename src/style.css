@@ -223,3 +223,4 @@ input[type='text'].deck-name { margin-top: 10px; font: 600 15px var(--sans); }
   .deck-card { grid-template-columns: 2.2em 1fr auto; }
   .deck-card input[data-field='back'], .deck-card input[data-field='note'] { grid-column: 2; }
 }
+.list li.found { display: block; font-weight: 600; color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); border-radius: 12px; padding: 10px 12px; }

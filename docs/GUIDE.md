@@ -38,15 +38,14 @@ The page first reads the band list of **Mi Fitness** (Mi Band 7 Pro, 8, 9, 10, X
 
 ### Other ways to get the key
 
-**iPhone / iPad (no Android needed)**: the key is stored in the Mi Fitness app folder, which iOS lets you copy.
+**iPhone / iPad (easiest, no Android needed)**: the key is in one small file of the Mi Fitness app.
 
-1. On the iPhone or iPad where Mi Fitness is signed in and the band has synced, open **Files** → **Browse** → **On My iPhone** (or **On My iPad**).
-2. Long-press the **Mi Fitness** folder → **Compress**. You get *Mi Fitness.zip*.
-3. Send the zip to the computer: AirDrop (Mac), iCloud Drive, Google Drive, or an email to yourself.
-4. On the website, open *"Other ways to get the auth key"* and pick the zip. The page reads it in the browser (nothing is uploaded) and shows **"Use this key"** for the band.
-5. Delete the zip afterwards: it also contains your health data.
+1. In **Files**: **On My iPad** (or iPhone) → **Mi Fitness** → **MHWCahe** → the number folder → **VirtualDevice_registerList**.
+2. AirDrop the file **`manifest.sqlite-wal`** to the computer.
+3. On the website, open *"Other ways to get the auth key"* and pick it. The page reads it in the browser (nothing is uploaded) and shows **"Use this key"**.
+4. Delete the file afterwards.
 
-Already unzipped it? Pick `manifest.sqlite` and `manifest.sqlite-wal` from `MHWCahe/<number>/VirtualDevice_registerList/` instead.
+The whole Mi Fitness folder compressed as a .zip works too, but it also holds your health data. Confirmed on a Mi Band 10 synced with Mi Fitness on an iPad (account region Singapore).
 
 **Android**: Mi Fitness writes the key to its log files.
 

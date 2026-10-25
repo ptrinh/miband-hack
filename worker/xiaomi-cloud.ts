@@ -405,6 +405,8 @@ export async function listDevices(s: Session, servers: readonly string[], budget
 // ---------------------------------------------------------- Mi Fitness ---
 
 export const HEALTH_PATH = '/app/v1/source/get_source_list';
+/** Regions tried for Mi Fitness when the user leaves the region on auto-detect, most likely first. */
+const AUTO_REGIONS = ['sg', 'de', 'us', 'i2', 'ru', 'in'];
 /** Regional Mi Fitness hosts (ha_miband); the base host is tried first (huami-token). */
 export const healthHost = (server?: string): string =>
   !server || server === 'cn' || !(SERVERS as readonly string[]).includes(server) ? 'hlth.io.mi.com' : `${server}.hlth.io.mi.com`;
@@ -454,9 +456,10 @@ export interface FitnessResult {
 
 /** Lists the account's Mi Fitness devices (bands, watches) with their auth keys. */
 export async function listFitnessDevices(s: Session, server: string | undefined, budget: number): Promise<FitnessResult> {
-  const hosts = [healthHost()];
-  if (server && healthHost(server) !== hosts[0]) hosts.push(healthHost(server));
-  const variants: HealthVariant[] = ['mihome', 'stream'];
+  // Auto-detect: the base host first, then the regional ones (a Vietnamese account answered with an
+  // empty list on the base host; its data is in the "sg" region).
+  const hosts = [...new Set([healthHost(), ...(server ? [server] : AUTO_REGIONS).map((r) => healthHost(r))])];
+  let variants: HealthVariant[] = ['mihome', 'stream'];
   let ok = false;
   for (const host of hosts) {
     for (const variant of variants) {
@@ -464,6 +467,7 @@ export async function listFitnessDevices(s: Session, server: string | undefined,
       const res = (await s.callHealth(host, HEALTH_PATH, { page_size: 50, status: 1 }, variant)) as Json | null;
       if (res?.code !== 0) continue;
       ok = true;
+      variants = [variant]; // the encoding Xiaomi accepted; other hosts get only this one
       const devices = parseSourceList(res, host);
       if (devices.length) return { ok, devices };
       break; // this host answered; an empty list will not change with the other variant

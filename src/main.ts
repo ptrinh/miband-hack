@@ -821,16 +821,25 @@ interface KeyRow { title: string; sub: string; key: string }
 
 /** One "Use this key" row per key; band/cloud values only ever go through textContent. */
 function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
+  // A green banner above the rows, so a found key is seen at once; it changes once the key is used.
+  const head = document.createElement('li');
+  head.className = 'found';
+  head.textContent = t('keyFoundHead');
+  ul.appendChild(head);
   for (const r of rows) {
     const li = document.createElement('li');
     const valid = /^[0-9a-f]{32}$/i.test(r.key);
-    li.append(nameCell(r.title, `${r.sub}${valid ? '' : ` · ${t('keyWarn', { n: r.key.length })}`}`), button(t('useKey'), async () => {
+    const use = button(t('useKey'), async () => {
       $<HTMLInputElement>('authkey').value = r.key;
+      head.textContent = t('keyFilledHead');
       toast(t('keyFilled', { name: r.title }));
       log(`Filled in key of ${r.title}`, 'ok');
-    }));
+    });
+    use.classList.add('primary');
+    li.append(nameCell(r.title, `${r.sub}${valid ? '' : ` · ${t('keyWarn', { n: r.key.length })}`}`), use);
     ul.appendChild(li);
   }
+  ul.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 let qrAbort: AbortController | null = null;

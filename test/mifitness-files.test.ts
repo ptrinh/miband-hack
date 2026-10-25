@@ -27,6 +27,30 @@ describe('Mi Fitness folder (iPhone / iPad Files app)', () => {
     expect(keysFromFiles({ 'manifest.sqlite': plain })).toEqual([BAND9]);
   });
 
+  it('finds the key in manifest.sqlite-wal alone (Mi Fitness keeps the whole database in the WAL)', () => {
+    // A WAL holding every page of the plain fixture, the last frame marked as a commit.
+    const ps = new SqliteReader(plain).pageSize;
+    const n = plain.length / ps;
+    const wal = new Uint8Array(32 + n * (24 + ps));
+    const v = new DataView(wal.buffer);
+    v.setUint32(0, 0x377f0682);
+    v.setUint32(4, 3007000);
+    v.setUint32(8, ps);
+    v.setUint32(16, 0x1234);
+    v.setUint32(20, 0x5678);
+    for (let i = 0; i < n; i++) {
+      const at = 32 + i * (24 + ps);
+      v.setUint32(at, i + 1);
+      v.setUint32(at + 4, i === n - 1 ? n : 0);
+      v.setUint32(at + 8, 0x1234);
+      v.setUint32(at + 12, 0x5678);
+      wal.set(plain.subarray(i * ps, (i + 1) * ps), at + 24);
+    }
+    expect(keysFromFiles({ 'manifest.sqlite-wal': wal })).toEqual([BAND9]);
+    // With its (empty here) manifest.sqlite picked too, the pair is read as usual.
+    expect(keysFromFiles({ 'manifest.sqlite': plain.subarray(0, ps), 'manifest.sqlite-wal': wal })).toEqual([BAND9]);
+  });
+
   it('rejects files that are not what we expect', () => {
     expect(() => new SqliteReader(new Uint8Array(200))).toThrow(/not an SQLite/);
     expect(() => parseBplist(new TextEncoder().encode('<?xml version="1.0"?>'))).toThrow(/binary plist/);

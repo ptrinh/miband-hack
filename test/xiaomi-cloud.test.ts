@@ -189,6 +189,22 @@ describe('mi fitness login and listing (mocked Xiaomi)', () => {
     expect(res.devices[0].server).toBe('sg.hlth.io.mi.com');
   });
 
+  it('tries the regional hosts on auto-detect, with the encoding the base host accepted', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (u: string) => {
+        const url = new URL(u);
+        calls.push(url.host);
+        const body = url.host === 'sg.hlth.io.mi.com' ? SOURCE_LIST : { code: 0, result: { list: [] } };
+        return new Response(await encryptBody(SSECURITY, url.searchParams.get('_nonce')!, body));
+      }),
+    );
+    const res = await listFitnessDevices(new Session('1', SSECURITY, 'token', 'c'), undefined, 12);
+    expect(calls).toEqual(['hlth.io.mi.com', 'sg.hlth.io.mi.com']);
+    expect(res.devices.filter((d) => d.key).length).toBe(3);
+  });
+
   it('reports not ok when Xiaomi rejects every variant', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })));
     expect(await listFitnessDevices(new Session('1', SSECURITY, 't'), undefined, 4)).toEqual({ ok: false, devices: [] });

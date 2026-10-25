@@ -4,10 +4,10 @@ interface Env {
   ASSETS: Fetcher;
 }
 
-// Workers free plan allows 50 subrequests per invocation. Login: long-poll + STS (2), Mi Fitness
-// up to 4, Mi Home SSO 2; the rest is for Mi Home device listing.
-const FITNESS_BUDGET = 4;
-const MIHOME_BUDGET = 38;
+// Workers free plan allows 50 subrequests per invocation. Login: long-poll + STS (up to 3), Mi Fitness
+// up to 12 (base host + regions on auto-detect), Mi Home SSO 2; the rest is for Mi Home device listing.
+const FITNESS_BUDGET = 12;
+const MIHOME_BUDGET = 30;
 const POLL_WAIT_MS = 20_000;
 
 const json = (body: unknown, status = 200): Response =>

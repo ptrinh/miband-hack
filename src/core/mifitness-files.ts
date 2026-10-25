@@ -346,6 +346,7 @@ export function keysFromManifest(db: Uint8Array, wal?: Uint8Array, dataFile?: (n
 
 /** The registerList manifest, or a lone manifest.sqlite picked by itself. */
 const MANIFEST = /(^|\/)VirtualDevice_registerList\/manifest\.sqlite$|^manifest\.sqlite$/;
+const WAL = /(^|\/)VirtualDevice_registerList\/manifest\.sqlite-wal$|^manifest\.sqlite-wal$/;
 
 /** Every auth key found in a zip of the Mi Fitness folder (deduplicated). */
 export function keysFromZip(zip: Uint8Array): FileKey[] {
@@ -357,10 +358,16 @@ export function keysFromZip(zip: Uint8Array): FileKey[] {
 export function keysFromFiles(files: Record<string, Uint8Array>): FileKey[] {
   const out: FileKey[] = [];
   const seen = new Set<string>();
-  for (const [path, db] of Object.entries(files)) {
-    if (!MANIFEST.test(path)) continue;
-    const dir = path.slice(0, path.length - 'manifest.sqlite'.length);
-    for (const k of keysFromManifest(db, files[`${path}-wal`], (name) => files[`${dir}data/${name}`])) {
+  for (const [path, bytes] of Object.entries(files)) {
+    // Mi Fitness keeps the whole database in the -wal (manifest.sqlite is one empty page), so the
+    // -wal alone is enough; it is read on its own only when its manifest.sqlite was not picked.
+    const walOnly = WAL.test(path) && !files[path.slice(0, -4)];
+    if (!MANIFEST.test(path) && !walOnly) continue;
+    const dbPath = walOnly ? path.slice(0, -4) : path;
+    const dir = dbPath.slice(0, dbPath.length - 'manifest.sqlite'.length);
+    const db = walOnly ? new Uint8Array(0) : bytes;
+    const wal = walOnly ? bytes : files[`${path}-wal`];
+    for (const k of keysFromManifest(db, wal, (name) => files[`${dir}data/${name}`])) {
       const id = `${k.did ?? k.mac ?? k.name}:${k.key}`;
       if (seen.has(id)) continue;
       seen.add(id);
