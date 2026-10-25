@@ -1,0 +1,5 @@
+node_modules/
+build/
+dist/
+# release signing key: never commit; shared with demo-apps/calculator/sign
+sign/

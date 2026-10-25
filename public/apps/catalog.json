@@ -10,8 +10,27 @@
       },
       "file": "apps/calculator.rpk",
       "icon": "apps/calculator.png",
-      "devices": ["Mi Band 9", "Mi Band 10"],
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
       "source": "demo-apps/calculator"
+    },
+    {
+      "id": "uk.trinh.miband.drawing",
+      "name": "Drawing",
+      "description": {
+        "en": "Draw with your finger: 5 colours, 3 brush sizes, eraser, undo. Your last drawing is kept.",
+        "zh": "用手指绘画：5 种颜色、3 种笔刷、橡皮擦、撤销。会保存上一次的画。",
+        "vi": "Vẽ bằng tay: 5 màu, 3 cỡ bút, tẩy, hoàn tác. Tự lưu bức vẽ gần nhất."
+      },
+      "file": "apps/drawing.rpk",
+      "icon": "apps/drawing.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/drawing"
     }
   ]
 }

@@ -1,0 +1,297 @@
+<template>
+  <div class="page">
+    <div id="area" class="area" ontouchstart="onStart" ontouchmove="onMove" ontouchend="onEnd">
+      <div class="dot" for="{{d in dots}}"
+           style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.s}}px; height: {{d.s}}px; border-radius: {{d.s / 2}}px; background-color: {{d.c}};"></div>
+      <text class="hint" if="{{dots.length === 0}}">Draw with your finger</text>
+      <text class="full" if="{{full}}">Canvas full: undo or clear</text>
+    </div>
+    <div class="toolbar">
+      <div class="row">
+        <div class="swatch {{!eraser && color === c ? 'picked' : ''}}" for="{{c in colors}}"
+             style="background-color: {{c}};" onclick="pickColor(c)"></div>
+      </div>
+      <div class="row">
+        <div class="tool" onclick="nextSize">
+          <div class="size-dot" style="width: {{size}}px; height: {{size}}px; border-radius: {{size / 2}}px; background-color: {{eraser ? '#8a8a8e' : color}};"></div>
+        </div>
+        <div class="tool {{eraser ? 'on' : ''}}" onclick="toggleEraser">
+          <text class="tool-label">Erase</text>
+        </div>
+        <div class="tool" onclick="undoStroke">
+          <text class="tool-label">Undo</text>
+        </div>
+        <div class="tool {{confirmClear ? 'warn' : ''}}" onclick="clearAll">
+          <text class="tool-label">{{confirmClear ? 'Sure?' : 'Clear'}}</text>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import {
+  COLORS, SIZES, createSketch, beginStroke, extendStroke, endStroke,
+  eraseStroke, undo, clear, serialize, deserialize
+} from '../../common/sketch.js'
+
+var DESIGN_WIDTH = 192
+var EDGE = 12 // touches starting this close to the left edge are left to the system back gesture
+var STORAGE_KEY = 'sketch-v1'
+
+var sketch = createSketch()
+
+export default {
+  private: {
+    dots: [],
+    colors: COLORS,
+    color: COLORS[0],
+    sizeIndex: 1,
+    size: SIZES[1],
+    eraser: false,
+    full: false,
+    confirmClear: false
+  },
+
+  onInit() {
+    var self = this
+    // Non-reactive bookkeeping: geometry and gesture state.
+    this.origin = { left: 0, top: 0, scale: 1, width: DESIGN_WIDTH, height: 400 }
+    this.drawing = false
+    this.lastTouch = 0
+    this.saveTimer = null
+    this.clearTimer = null
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        sketch = deserialize(text)
+        self.syncAll()
+      },
+      fail: function () {
+        sketch = createSketch()
+      }
+    })
+  },
+
+  onShow() {
+    var self = this
+    // Map touch coordinates (whatever unit the device reports) onto design px.
+    this.$element('area').getBoundingClientRect({
+      success: function (r) {
+        var scale = r.width > 0 ? DESIGN_WIDTH / r.width : 1
+        self.origin = { left: r.left, top: r.top, scale: scale, width: DESIGN_WIDTH, height: r.height * scale }
+      }
+    })
+  },
+
+  onHide() {
+    this.saveNow()
+  },
+
+  onBackPress() {
+    // A right swipe that is really a stroke must not close the app.
+    if (this.drawing || Date.now() - this.lastTouch < 400) return true
+    return false
+  },
+
+  point(evt) {
+    var t = (evt.changedTouches && evt.changedTouches[0]) || (evt.touches && evt.touches[0])
+    if (!t) return null
+    var o = this.origin
+    var x = (t.clientX - o.left) * o.scale
+    var y = (t.clientY - o.top) * o.scale
+    return {
+      x: Math.max(0, Math.min(o.width, x)),
+      y: Math.max(0, Math.min(o.height, y)),
+      raw: x
+    }
+  },
+
+  onStart(evt) {
+    var p = this.point(evt)
+    if (!p || p.raw < EDGE) {
+      this.drawing = false
+      return
+    }
+    this.drawing = true
+    this.lastTouch = Date.now()
+    if (this.eraser) {
+      sketch.last = null
+      if (eraseStroke(sketch, p.x, p.y, this.size + 4)) this.syncAll()
+    } else {
+      this.append(beginStroke(sketch, p.x, p.y, this.size, this.color))
+    }
+  },
+
+  onMove(evt) {
+    if (!this.drawing) return
+    var p = this.point(evt)
+    if (!p) return
+    this.lastTouch = Date.now()
+    if (this.eraser) {
+      if (eraseStroke(sketch, p.x, p.y, this.size + 4)) this.syncAll()
+    } else {
+      this.append(extendStroke(sketch, p.x, p.y, this.size, this.color))
+    }
+  },
+
+  onEnd() {
+    if (!this.drawing) return
+    this.drawing = false
+    this.lastTouch = Date.now()
+    endStroke(sketch)
+    this.scheduleSave()
+  },
+
+  append(added) {
+    for (var i = 0; i < added.length; i++) this.dots.push(added[i])
+    this.full = sketch.full
+  },
+
+  syncAll() {
+    this.dots = sketch.dots.slice()
+    this.full = sketch.full
+  },
+
+  pickColor(c) {
+    this.color = c
+    this.eraser = false
+  },
+
+  nextSize() {
+    this.sizeIndex = (this.sizeIndex + 1) % SIZES.length
+    this.size = SIZES[this.sizeIndex]
+  },
+
+  toggleEraser() {
+    this.eraser = !this.eraser
+  },
+
+  undoStroke() {
+    if (undo(sketch)) {
+      this.syncAll()
+      this.scheduleSave()
+    }
+  },
+
+  clearAll() {
+    var self = this
+    if (!this.confirmClear) {
+      this.confirmClear = true
+      this.clearTimer = setTimeout(function () { self.confirmClear = false }, 2000)
+      return
+    }
+    clearTimeout(this.clearTimer)
+    this.confirmClear = false
+    clear(sketch)
+    this.syncAll()
+    this.scheduleSave()
+  },
+
+  scheduleSave() {
+    var self = this
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = setTimeout(function () { self.saveNow() }, 800)
+  },
+
+  saveNow() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
+    // An empty value deletes the key (documented behaviour of storage.set).
+    storage.set({ key: STORAGE_KEY, value: serialize(sketch) })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+}
+
+.area {
+  flex: 1;
+  width: 100%;
+  background-color: #000000;
+  justify-content: center;
+  align-items: center;
+}
+
+.dot {
+  position: absolute;
+}
+
+.hint {
+  font-size: 16px;
+  color: #48484a;
+  text-align: center;
+}
+
+.full {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  width: 192px;
+  font-size: 14px;
+  color: #ff9f0a;
+  text-align: center;
+}
+
+.toolbar {
+  flex-direction: column;
+  height: 86px;
+  padding: 4px 6px 14px 6px;
+  background-color: #1c1c1e;
+}
+
+.row {
+  flex: 1;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  border-width: 2px;
+  border-color: #1c1c1e;
+}
+
+.picked {
+  border-color: #ffffff;
+}
+
+.tool {
+  width: 42px;
+  height: 30px;
+  border-radius: 10px;
+  border-width: 2px;
+  border-color: #3a3a3c;
+  background-color: #3a3a3c;
+  justify-content: center;
+  align-items: center;
+}
+
+.on {
+  background-color: #0a84ff;
+  border-color: #0a84ff;
+}
+
+.warn {
+  background-color: #ff453a;
+  border-color: #ff453a;
+}
+
+.tool-label {
+  font-size: 13px;
+  color: #ffffff;
+  text-align: center;
+}
+</style>
