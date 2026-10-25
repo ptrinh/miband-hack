@@ -54,7 +54,7 @@ MiBand Hack fills that gap: open a web page and install.
 
 Outside the catalog: **Phone Remote** (`demo-apps/phone-remote`) — press on the band to take photos, change slides, play/pause on the phone. It needs the companion Android app (same package, same signature) and Mi Fitness to relay messages over `system.interconnect`; not yet verified on Mi Band 9/10, so it is not in the catalog yet.
 
-All five catalog apps are built with `aiot-toolkit` 2.0.5 (Xiaomi Vela's official toolchain). **None has been run on a real band yet.**
+All catalog apps are built with `aiot-toolkit` 2.0.5 (Xiaomi Vela's official toolchain). **None has been run on a real band yet.**
 
 `src/rpk/` is a WebCrypto port of aiot-toolkit's "RPK Sig Block 42" signature format (a variant of APK Signature Scheme v2, RSA PKCS#1 v1.5 + SHA-256). Tests confirm the signature is **byte-for-byte identical** to the one the toolkit produces. Notes is signed with a demo key that is **deliberately public** (`src/rpk/demo-key/`).
 
