@@ -1,0 +1,6 @@
+node_modules/
+build/
+dist/
+# copied from ../../../src/rpk/demo-key by `npm run presign`; the Android companion is signed with
+# the same certificate (interconnect requires it). Never put a real private key here.
+sign/

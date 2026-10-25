@@ -1,0 +1,323 @@
+<template>
+  <div class="page">
+    <div class="status">
+      <div class="led {{link}}"></div>
+      <text class="status-text">{{linkLabel}}</text>
+    </div>
+    <text class="target">{{target}}</text>
+
+    <div class="btn shutter {{flash === 'shutter' ? 'flash' : ''}}" onclick="press('shutter')">
+      <div class="lens"><div class="lens-core"></div></div>
+      <text class="label">Shutter</text>
+    </div>
+
+    <div class="row">
+      <div class="btn half {{flash === 'prev' ? 'flash' : ''}}" onclick="press('prev')">
+        <text class="arrow">&lt;</text>
+        <text class="label">Prev</text>
+      </div>
+      <div class="btn half {{flash === 'next' ? 'flash' : ''}}" onclick="press('next')">
+        <text class="arrow">&gt;</text>
+        <text class="label">Next</text>
+      </div>
+    </div>
+
+    <div class="btn wide {{flash === 'playpause' ? 'flash' : ''}}" onclick="press('playpause')">
+      <text class="label">Play / Pause</text>
+    </div>
+
+    <text class="result {{failed ? 'bad' : ''}}">{{result}}</text>
+  </div>
+</template>
+
+<script>
+import vibrator from '@system.vibrator'
+import {
+  encode, decode, resultText, sendErrorText, linkText, errorState, targetText, REPLY_TIMEOUT_MS
+} from '../../common/remote.js'
+
+// Not every band firmware may ship interconnect; without it the page still opens and says so.
+var interconnect = null
+try {
+  interconnect = require('@system.interconnect')
+} catch (e) {
+  interconnect = null
+}
+
+var FLASH_MS = 160
+
+export default {
+  private: {
+    link: 'connecting',
+    linkLabel: linkText('connecting'),
+    target: '',
+    flash: '',
+    result: '',
+    failed: false
+  },
+
+  onInit() {
+    // Non-reactive bookkeeping.
+    this.conn = null
+    this.nextId = 1
+    this.pendingId = 0
+    this.replyTimer = null
+    this.flashTimer = null
+    this.connect()
+  },
+
+  onDestroy() {
+    if (this.replyTimer) clearTimeout(this.replyTimer)
+    if (this.flashTimer) clearTimeout(this.flashTimer)
+    if (this.conn) {
+      this.conn.onmessage = null
+      this.conn.onopen = null
+      this.conn.onclose = null
+      this.conn.onerror = null
+    }
+  },
+
+  connect() {
+    var self = this
+    if (!interconnect || typeof interconnect.instance !== 'function') {
+      this.setLink('unsupported')
+      return
+    }
+    try {
+      this.conn = interconnect.instance()
+    } catch (e) {
+      this.conn = null
+    }
+    if (!this.conn) {
+      this.setLink('unsupported')
+      return
+    }
+    this.conn.onopen = function () {
+      self.setLink('open')
+      self.send('hello')
+    }
+    this.conn.onclose = function () {
+      self.setLink('closed')
+    }
+    this.conn.onerror = function (res) {
+      self.setLink(errorState(res && res.code))
+    }
+    this.conn.onmessage = function (res) {
+      self.receive(res)
+    }
+    // The connection is set up by the system; ask where it stands now.
+    this.conn.getReadyState({
+      success: function (res) {
+        var status = res && (res.status !== undefined ? res.status : res.data && res.data.status)
+        if (status === 1) {
+          self.setLink('open')
+          self.send('hello')
+        } else {
+          self.setLink('closed')
+        }
+      },
+      fail: function () {
+        self.setLink('closed')
+      }
+    })
+  },
+
+  setLink(state) {
+    this.link = state
+    this.linkLabel = linkText(state)
+  },
+
+  press(cmd) {
+    this.buzz('short')
+    this.blink(cmd)
+    if (!this.conn) {
+      this.show(linkText(this.link), true)
+      return
+    }
+    this.send(cmd)
+  },
+
+  send(cmd) {
+    var self = this
+    var id = this.nextId++
+    if (cmd !== 'hello') {
+      this.pendingId = id
+      this.show('Sending…', false)
+      if (this.replyTimer) clearTimeout(this.replyTimer)
+      this.replyTimer = setTimeout(function () {
+        if (self.pendingId !== id) return
+        self.pendingId = 0
+        self.show('No reply from phone', true)
+        self.buzz('long')
+      }, REPLY_TIMEOUT_MS)
+    }
+    this.conn.send({
+      data: encode(cmd, id),
+      success: function () {},
+      fail: function (data, code) {
+        if (code === 1006) self.setLink('closed')
+        if (cmd === 'hello' || self.pendingId !== id) return
+        self.pendingId = 0
+        clearTimeout(self.replyTimer)
+        self.show(sendErrorText(code), true)
+        self.buzz('long')
+      }
+    })
+  },
+
+  receive(res) {
+    var msg = decode(res)
+    if (!msg) return
+    if (this.link !== 'open') this.setLink('open')
+    this.target = targetText(msg)
+    if (!msg.isReply || msg.did === 'hello') return
+    if (msg.id !== this.pendingId) return // a late reply to an earlier press
+    this.pendingId = 0
+    clearTimeout(this.replyTimer)
+    this.show(resultText(msg), !msg.ok)
+    if (!msg.ok) this.buzz('long')
+  },
+
+  show(text, failed) {
+    this.result = text
+    this.failed = failed
+  },
+
+  blink(cmd) {
+    var self = this
+    this.flash = cmd
+    if (this.flashTimer) clearTimeout(this.flashTimer)
+    this.flashTimer = setTimeout(function () { self.flash = '' }, FLASH_MS)
+  },
+
+  buzz(mode) {
+    try {
+      vibrator.vibrate({ mode: mode })
+    } catch (e) {}
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  background-color: #000000;
+  padding: 20px 8px 0 8px;
+}
+
+.status {
+  height: 26px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.led {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  margin-right: 6px;
+  background-color: #8a8a8e;
+}
+
+.open {
+  background-color: #30d158;
+}
+
+.closed,
+.no-app,
+.unsupported {
+  background-color: #ff453a;
+}
+
+.status-text {
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.target {
+  height: 20px;
+  font-size: 14px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.btn {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background-color: #1f1f22;
+  margin-top: 8px;
+}
+
+.flash {
+  background-color: #5e5ce6;
+}
+
+.shutter {
+  width: 176px;
+  height: 140px;
+}
+
+.lens {
+  width: 76px;
+  height: 76px;
+  border-radius: 38px;
+  border-width: 5px;
+  border-color: #ffffff;
+  align-items: center;
+  justify-content: center;
+}
+
+.lens-core {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background-color: #ffffff;
+}
+
+.row {
+  width: 176px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.half {
+  width: 84px;
+  height: 104px;
+}
+
+.wide {
+  width: 176px;
+  height: 84px;
+}
+
+.arrow {
+  font-size: 40px;
+  color: #ffffff;
+}
+
+.label {
+  font-size: 18px;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.result {
+  width: 176px;
+  height: 44px;
+  margin-top: 6px;
+  font-size: 14px;
+  color: #30d158;
+  text-align: center;
+  lines: 2;
+}
+
+.bad {
+  color: #ff9f0a;
+}
+</style>

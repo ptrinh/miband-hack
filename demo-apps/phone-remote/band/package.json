@@ -1,0 +1,19 @@
+{
+  "name": "miband-phone-remote",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phone Remote quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app); talks to the Android companion in ../android over system.interconnect",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "aiot build",
+    "presign": "mkdir -p sign && cp ../../../src/rpk/demo-key/private.pem ../../../src/rpk/demo-key/certificate.pem sign/",
+    "release": "npm run presign && aiot release",
+    "test": "node --no-warnings test/remote-check.mjs"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "2.0.5"
+  }
+}
