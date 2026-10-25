@@ -315,6 +315,49 @@
           }
         }
       ]
+    },
+    {
+      "id": "uk.trinh.miband.flashcards",
+      "name": "Flashcards",
+      "description": {
+        "en": "Your own flashcard decks on the band: IELTS words, HSK Chinese, Japanese, formulas, capitals… Write or paste them here (CSV/TSV from a spreadsheet, or JSON), then study with flip cards or a multiple-choice quiz. Spaced repetition per deck, progress saved on the band.",
+        "zh": "把您自己的单词卡组放到手环上：雅思词汇、HSK 汉语、日语、公式、各国首都……在这里编写或粘贴（表格中的 CSV/TSV 或 JSON），然后用翻卡片或选择题测验来学习。每个卡组单独做间隔重复，进度保存在手环上。",
+        "vi": "Bộ thẻ học của riêng bạn trên band: từ vựng IELTS, tiếng Trung HSK, tiếng Nhật, công thức, thủ đô… Soạn hoặc dán ngay tại đây (CSV/TSV từ bảng tính, hoặc JSON), rồi học bằng lật thẻ hoặc trắc nghiệm. Ôn lặp ngắt quãng theo từng bộ, tiến độ lưu trên band."
+      },
+      "file": "apps/flashcards.rpk",
+      "icon": "apps/flashcards.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/flashcards",
+      "customize": "flashcards",
+      "screenshots": [
+        {
+          "src": "apps/screens/flashcards-1.png",
+          "alt": {
+            "en": "Flashcards: the deck list with World capitals, HSK 1 and Tiếng Việt",
+            "zh": "单词卡：卡组列表，包括世界各国首都、HSK 1 和 Tiếng Việt",
+            "vi": "Flashcards: danh sách bộ thẻ gồm Thủ đô các nước, HSK 1 và Tiếng Việt"
+          }
+        },
+        {
+          "src": "apps/screens/flashcards-2.png",
+          "alt": {
+            "en": "Flashcards: an HSK card flipped, pinyin and meaning with an example, Again and Know it buttons",
+            "zh": "单词卡：翻面后的 HSK 卡片，显示拼音、释义和例句，以及 Again 和 Know it 按钮",
+            "vi": "Flashcards: thẻ HSK đã lật, phiên âm và nghĩa kèm ví dụ, nút Again và Know it"
+          }
+        },
+        {
+          "src": "apps/screens/flashcards-3.png",
+          "alt": {
+            "en": "Flashcards quiz: “Vietnam” with four capitals, the right answer Hanoi in green",
+            "zh": "单词卡测验：“Vietnam”和四个首都选项，正确答案 Hanoi 显示为绿色",
+            "vi": "Flashcards trắc nghiệm: “Vietnam” với bốn thủ đô, đáp án đúng Hanoi tô xanh"
+          }
+        }
+      ]
     }
   ]
 }

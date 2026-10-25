@@ -47,6 +47,7 @@ MiBand Hack fills that gap: open a web page and install.
 | Checklist | Shopping, to-do and packing lists written in the webapp (repacked and re-signed in the browser like Notes); tap items on the band to tick them off, ticks saved on the band | `demo-apps/checklist` + `src/rpk/` |
 | Snake | Snake game: swipe or tap the left/right half to turn, speeds up, saves the high score | `demo-apps/snake` |
 | SAT Flashcards | Learn 1,355 SAT words: flip cards (Know it / Again) or a multiple-choice quiz, spaced repetition (Leitner boxes), progress saved on the band | `demo-apps/sat-flashcards` |
+| Flashcards | Your own decks (any subject or language), written or pasted from a spreadsheet in the webapp and repacked into the `.rpk` like Notes; flip cards or multiple-choice quiz, Leitner progress per deck saved on the band | `demo-apps/flashcards` + `src/decks/` |
 | Metronome | Silent metronome: the beat as a vibration on the wrist plus a flash, 30–250 BPM, tap tempo, accent on beat 1 in 2/4, 3/4, 4/4, 6/8 | `demo-apps/metronome` |
 | Counter | Tally counter: tap anywhere to count (short buzz), −1, reset with a confirming second tap, goal presets with a long buzz and a tick, four named counters saved on the band | `demo-apps/counter` |
 | Random | Random number (min/max with − / +), dice (1 or 2 with the sum), coin flip; No repeats mode for raffles; buzz on each result, settings saved on the band | `demo-apps/random` |

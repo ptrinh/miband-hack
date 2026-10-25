@@ -422,6 +422,8 @@ export default {
 }
 
 .back {
+  justify-content: flex-start;
+  align-items: flex-start;
   padding: 12px 10px;
 }
 

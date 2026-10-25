@@ -33,7 +33,7 @@ function subLine(d, sum) {
   var s = sum[d.id]
   var cards = d.n === 1 ? '1 card' : d.n + ' cards'
   // A summary saved for an older version of the deck still counts the cards it had then.
-  return s && s.total === d.n ? cards + ' · ' + s.learned + ' learned' : cards
+  return s && s.total === d.n ? s.learned + '/' + d.n + ' learned' : cards
 }
 
 export default {
