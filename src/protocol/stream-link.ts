@@ -97,7 +97,20 @@ export class StreamLink implements Link {
     await this.write(v1VersionRequest());
   }
 
+  /** Frame-by-frame trace (type, seq, length, channel/opcode; never the payload) until auth succeeds. */
+  private trace = true;
+
+  private traceFrame(dir: '→' | '←', f: Uint8Array): void {
+    if (!this.trace || f.length < 8 || f[0] !== 0xa5 || f[1] !== 0xa5) return;
+    const type = f[2] & 0x0f;
+    const name = ({ 1: 'ACK', 2: 'SESSION_CONFIG', 3: 'DATA', 4: 'NACK' } as Record<number, string>)[type] ?? `type ${type}`;
+    const len = f[4] | (f[5] << 8);
+    const extra = type === 3 && f.length >= 10 ? `, channel ${f[8]} opcode ${f[9]}` : '';
+    this.log(`    ${dir} frame ${name} seq ${f[3]} payload ${len} B${extra}`);
+  }
+
   private write(data: Uint8Array): Promise<void> {
+    this.traceFrame('→', data);
     const p = this.writeChain.then(() => this.transport.write(data));
     this.writeChain = p.catch(() => {});
     return p;
@@ -154,6 +167,7 @@ export class StreamLink implements Link {
         this.rx.skip(next);
         continue;
       }
+      if (v2) this.traceFrame('←', buf.subarray(0, res.size));
       this.rx.skip(res.size);
       if (!res.packet) {
         this.log('⚠ frame checksum error, dropped');
@@ -319,7 +333,10 @@ export class StreamLink implements Link {
     return this.mode === 'v2' ? this.sendV2('data', chunk) : this.sendV1('data', chunk);
   }
 
-  onAuthSuccess(): void {}
+  onAuthSuccess(): void {
+    this.trace = false;
+    this.log('  (frame trace off after authentication)');
+  }
 
   private dispose(): void {
     if (this.versionTimer) clearTimeout(this.versionTimer);

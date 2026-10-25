@@ -47,22 +47,58 @@ async function optionalChar(svc: BluetoothRemoteGATTService, id: number) {
   }
 }
 
-/** Opens the device picker, connects and detects which Xiaomi BLE protocol the band speaks. */
-export async function requestBle(): Promise<BleConnection> {
+const props = (c: BluetoothRemoteGATTCharacteristic): string =>
+  (['read', 'write', 'writeWithoutResponse', 'notify', 'indicate'] as const).filter((k) => c.properties[k]).join('+') || 'none';
+
+/**
+ * Opens the device picker, connects and detects which Xiaomi BLE protocol the band speaks. Every step
+ * is logged with its duration, and a failing step with the browser's error name and message.
+ */
+export async function requestBle(log: (m: string) => void = () => {}): Promise<BleConnection> {
   if (!webBluetoothAvailable()) throw new Error(t('errNoWebBt'));
-  const device = await navigator.bluetooth.requestDevice({
-    filters: [{ services: [XIAOMI_SERVICE] }, { namePrefix: 'Xiaomi' }, { namePrefix: 'Redmi' }],
-    optionalServices: [XIAOMI_SERVICE],
-  });
-  const gatt = await device.gatt!.connect();
-  const svc = await gatt.getPrimaryService(XIAOMI_SERVICE);
+  const step = async <T>(what: string, f: () => Promise<T>): Promise<T> => {
+    const s = performance.now();
+    try {
+      const r = await f();
+      log(`  ✓ ${what} (${Math.round(performance.now() - s)} ms)`);
+      return r;
+    } catch (e) {
+      const err = e as Error;
+      log(`  ✗ ${what} failed after ${Math.round(performance.now() - s)} ms: ${err.name}: ${err.message}`);
+      throw e;
+    }
+  };
+  const available = await navigator.bluetooth.getAvailability?.().catch(() => undefined);
+  log(`  Bluetooth adapter available: ${available === undefined ? 'unknown' : available ? 'yes' : 'no'}`);
+  const device = await step('device picked', () =>
+    navigator.bluetooth.requestDevice({
+      filters: [{ services: [XIAOMI_SERVICE] }, { namePrefix: 'Xiaomi' }, { namePrefix: 'Redmi' }],
+      optionalServices: [XIAOMI_SERVICE],
+    }),
+  );
+  log(`  device: "${device.name ?? '?'}", browser id ${device.id.slice(0, 8)}…`);
+  const connectedAt = performance.now();
+  device.addEventListener('gattserverdisconnected', () =>
+    log(`  · GATT disconnected by the band or the system after ${Math.round(performance.now() - connectedAt)} ms`),
+  );
+  let gatt: BluetoothRemoteGATTServer;
+  try {
+    gatt = await step('GATT connect', () => device.gatt!.connect());
+  } catch (e) {
+    log(`  hint: ${t('bleConnectHint')}`);
+    throw e;
+  }
+  const svc = await step(`Xiaomi service ${XIAOMI_SERVICE}`, () => gatt.getPrimaryService(XIAOMI_SERVICE));
+  const chars = await svc.getCharacteristics().catch(() => [] as BluetoothRemoteGATTCharacteristic[]);
+  log(`  characteristics: ${chars.map((c) => `${c.uuid.slice(4, 8)}(${props(c)})`).join(', ') || 'none listed'}`);
 
   // BLE V2 (e.g. Mi Band 9 Active): SPP V2 framing over 0x005e (rx) / 0x005f (tx).
   const rx = await optionalChar(svc, 0x005e);
   const tx = await optionalChar(svc, 0x005f);
   if (rx && tx) {
+    log('  protocol: BLE V2 (SPP V2 frames over 005e / 005f)');
     const transport = new BleV2Transport(device, rx, tx);
-    await transport.start();
+    await step('notifications on 005e', () => transport.start());
     return { kind: 'v2', device, transport };
   }
 
@@ -72,9 +108,11 @@ export async function requestBle(): Promise<BleConnection> {
   const activity = await optionalChar(svc, 0x0053);
   const upload = await optionalChar(svc, 0x0055);
   if (commandRead && commandWrite && activity) {
+    log('  protocol: BLE V1 (chunks over 0051..0055)');
     return { kind: 'v1', device, chars: { commandRead, commandWrite, activity, upload } };
   }
 
+  log('  ✗ neither BLE V2 (005e/005f) nor BLE V1 (0051..0053) characteristics found');
   gatt.disconnect();
   throw new Error(t('errUnknownBle'));
 }

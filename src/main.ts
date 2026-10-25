@@ -325,6 +325,17 @@ function readDeviceId(): string {
   return $<HTMLInputElement>('deviceid').value.trim();
 }
 
+/** One line about the browser and page, so a pasted log says where it came from. */
+function logEnvironment(kind: 'spp' | 'ble'): void {
+  const ua = (navigator as Navigator & { userAgentData?: { brands?: { brand: string; version: string }[]; platform?: string } }).userAgentData;
+  const browser = ua?.brands?.filter((b) => !/not.?a.?brand/i.test(b.brand)).map((b) => `${b.brand} ${b.version}`).join(', ');
+  log(
+    `  environment: ${browser || navigator.userAgent}${ua?.platform ? ` on ${ua.platform}` : ''}; ` +
+      `Web Bluetooth ${webBluetoothAvailable() ? 'yes' : 'no'}, Web Serial ${webSerialAvailable() ? 'yes' : 'no'}; ` +
+      `transport ${kind.toUpperCase()}; page ${location.pathname}${location.search}`,
+  );
+}
+
 async function connect(kind: 'spp' | 'ble'): Promise<void> {
   let key: Uint8Array;
   try {
@@ -335,6 +346,7 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
     return;
   }
   setConnecting(true);
+  logEnvironment(kind);
   try {
     let link: Link;
     if (kind === 'spp') {
@@ -342,7 +354,7 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
       link = new StreamLink(await SerialTransport.request(), 'detect');
     } else {
       log(t('pickBle'));
-      const c = await requestBle();
+      const c = await requestBle((m) => log(m));
       link = c.kind === 'v2' ? new StreamLink(c.transport, 'v2') : new BleV1Link(c.device, c.chars);
     }
     const dev = new XiaomiDevice(link, key, readDeviceId(), readConnectOptions());
