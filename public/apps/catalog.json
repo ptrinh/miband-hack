@@ -154,6 +154,40 @@
           }
         }
       ]
+    },
+    {
+      "id": "uk.trinh.miband.metronome",
+      "name": "Metronome",
+      "description": {
+        "en": "Silent metronome for musicians: feel the beat as a vibration on your wrist, with a flash on screen. 30–250 BPM, tap tempo, accent on beat 1 in 2/4, 3/4, 4/4 or 6/8. Keeps your last tempo.",
+        "zh": "给音乐人的静音节拍器：节拍以手腕振动传达，屏幕同步闪烁。30–250 BPM，支持敲击测速，2/4、3/4、4/4、6/8 拍第一拍重音。会记住上次的速度。",
+        "vi": "Máy đếm nhịp im lặng cho người chơi nhạc: cảm nhận nhịp qua rung trên cổ tay, kèm nháy sáng trên màn hình. 30–250 BPM, gõ để đo nhịp, nhấn phách 1 với 2/4, 3/4, 4/4, 6/8. Nhớ nhịp độ lần trước."
+      },
+      "file": "apps/metronome.rpk",
+      "icon": "apps/metronome.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/metronome",
+      "screenshots": [
+        {
+          "src": "apps/screens/metronome-1.png",
+          "alt": {
+            "en": "Metronome running at 96 BPM in 4/4: beat 1 lit in orange, with the −/+, Tap tempo and Stop buttons",
+            "zh": "节拍器以 96 BPM、4/4 拍运行：第一拍亮起橙色，下方是 −/+、敲击测速和停止按钮",
+            "vi": "Metronome đang chạy 96 BPM nhịp 4/4: phách 1 sáng màu cam, kèm nút −/+, Tap tempo và Stop"
+          }
+        },
+        {
+          "src": "apps/screens/metronome-2.png",
+          "alt": {
+            "en": "Metronome stopped: 6/8 with a long vibration on beat 1, tempo 72 BPM set by tapping",
+            "zh": "节拍器已停止：6/8 拍，第一拍长振动，通过敲击设定为 72 BPM",
+            "vi": "Metronome đang dừng: nhịp 6/8, phách 1 rung dài, nhịp độ 72 BPM đo bằng cách gõ"
+          }
+        }
+      ]
     }
   ]
 }
