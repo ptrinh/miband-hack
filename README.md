@@ -46,6 +46,7 @@ MiBand Hack fills that gap: open a web page and install.
 | Notes | Shows the user's notes (read-only). Notes are written in the webapp; the browser **repacks and re-signs the `.rpk`** and installs it | `demo-apps/notes` + `src/rpk/` |
 | Snake | Snake game: swipe or tap the left/right half to turn, speeds up, saves the high score | `demo-apps/snake` |
 | SAT Flashcards | Learn 372 SAT words: flip cards, Know it / Again, spaced repetition (Leitner boxes), progress saved on the band | `demo-apps/sat-flashcards` |
+| Counter | Tally counter: tap anywhere to count (short buzz), −1, reset with a confirming second tap, goal presets with a long buzz and a tick, four named counters saved on the band | `demo-apps/counter` |
 
 Outside the catalog: **Phone Remote** (`demo-apps/phone-remote`) — press on the band to take photos, change slides, play/pause on the phone. It needs the companion Android app (same package, same signature) and Mi Fitness to relay messages over `system.interconnect`; not yet verified on Mi Band 9/10, so it is not in the catalog yet.
 
