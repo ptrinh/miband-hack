@@ -1,0 +1,13 @@
+{
+  "apps": [
+    {
+      "id": "uk.trinh.miband.calculator",
+      "name": "Calculator",
+      "description": "Máy tính bỏ túi: + − × ÷, số thập phân. App mẫu mã nguồn mở của MiBand Hack.",
+      "file": "apps/calculator.rpk",
+      "icon": "apps/calculator.png",
+      "devices": ["Mi Band 9", "Mi Band 10"],
+      "source": "demo-apps/calculator"
+    }
+  ]
+}
