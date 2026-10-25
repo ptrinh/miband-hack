@@ -189,6 +189,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <section class="card span-2">
       <details open>
         <summary data-i18n="logTitle"></summary>
+        <div class="row" style="justify-content:flex-end;margin:6px 0"><button class="small" id="btn-log-copy" data-i18n="logCopy"></button></div>
         <pre class="log" id="log"></pre>
       </details>
     </section>
@@ -547,6 +548,15 @@ $<HTMLInputElement>('deviceid').value = deviceIdStorage.get() ?? '';
     $('auth-variant').closest('details')?.setAttribute('open', '');
   }
 }
+
+$('btn-log-copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('log').textContent ? [...$('log').children].map((l) => l.textContent).join('\n') : '');
+    toast(t('logCopied'));
+  } catch (e) {
+    fail(e);
+  }
+};
 
 $('btn-spp').onclick = () => void connect('spp');
 $('btn-ble').onclick = () => void connect('ble');

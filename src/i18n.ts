@@ -75,6 +75,8 @@ const en = {
   refresh: 'Refresh',
   facesTitle: 'Watchfaces',
   logTitle: 'Connection log',
+  logCopy: 'Copy log',
+  logCopied: 'Log copied',
   footer1: 'Independent project, not affiliated with Xiaomi. Unofficial apps may make your band misbehave — use at your own risk.',
   footer2: `Protocol ported from <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">Source on GitHub</a>`,
 
@@ -379,6 +381,8 @@ const zh: Record<Key, string> = {
   refresh: '刷新',
   facesTitle: '表盘',
   logTitle: '连接日志',
+  logCopy: '复制日志',
+  logCopied: '日志已复制',
   footer1: '独立项目，与小米无关。非官方应用可能导致手环工作异常——风险自负。',
   footer2: `协议移植自 <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">GitHub 源代码</a>`,
 
@@ -681,6 +685,8 @@ const vi: Record<Key, string> = {
   refresh: 'Làm mới',
   facesTitle: 'Watchface',
   logTitle: 'Nhật ký kết nối',
+  logCopy: 'Copy log',
+  logCopied: 'Đã copy log',
   footer1: 'Dự án độc lập, không liên kết với Xiaomi. Sideload app không chính thức có thể khiến band hoạt động bất thường — tự chịu rủi ro.',
   footer2: `Giao thức port từ <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · Giấy phép AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">Mã nguồn trên GitHub</a>`,
 
