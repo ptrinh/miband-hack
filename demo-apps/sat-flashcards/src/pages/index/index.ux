@@ -9,12 +9,29 @@
       <text class="done-title">All done!</text>
       <text class="info">Nothing due now. Come back tomorrow.</text>
     </div>
+    <div elif="{{state === 'quiz'}}" class="quiz">
+      <div class="prompt">
+        <text if="{{qKind === 'def'}}" class="word {{wordSize}}">{{word}}</text>
+        <text else class="prompt-def">{{def}}</text>
+        <text class="pos">{{pos}}</text>
+      </div>
+      <div class="choice {{c.cls}}" for="{{(i, c) in choices}}" onclick="pick(i)">
+        <text class="choice-label {{c.size}} {{c.lcls}}">{{c.text}}</text>
+      </div>
+    </div>
+    <div elif="{{state === 'result'}}" class="card back {{resultClass}}" onclick="nextQuestion">
+      <text class="verdict {{verdictClass}}">{{verdict}}</text>
+      <text class="word-small {{smallSize}}">{{word}}</text>
+      <text class="pos">{{pos}}</text>
+      <text class="def">{{def}}</text>
+      <text class="ex">{{ex}}</text>
+    </div>
     <div elif="{{!flipped}}" class="card" onclick="flip">
       <text class="word {{wordSize}}">{{word}}</text>
       <text class="pos">{{pos}}</text>
     </div>
     <div else class="card back" onclick="flip">
-      <text class="word-small">{{word}}</text>
+      <text class="word-small {{smallSize}}">{{word}}</text>
       <text class="pos">{{pos}}</text>
       <text class="def">{{def}}</text>
       <text class="ex">{{ex}}</text>
@@ -28,6 +45,9 @@
       </div>
     </div>
     <text elif="{{state === 'card'}}" class="hint">Tap card to flip</text>
+    <div elif="{{state === 'result'}}" class="next" onclick="nextQuestion">
+      <text class="btn-label">Next ›</text>
+    </div>
   </div>
 </template>
 
@@ -35,20 +55,37 @@
 import storage from '@system.storage'
 import router from '@system.router'
 import { WORDS } from '../../common/words.js'
+import { keysOf, entryAt } from '../../common/deck.js'
 import {
   createState, createSession, newOrder, nextCard, answer, isNew,
   stats, serialize, deserialize, dayNumber, partOfSpeech
 } from '../../common/srs.js'
+import {
+  makeQuestion, choiceText, isCorrect, createScore, record, accuracy, serializeScore, deserializeScore
+} from '../../common/quiz.js'
 
 var STORAGE_KEY = 'sat-v1'
-var ORDER = newOrder(WORDS.length)
+var QUIZ_KEY = 'sat-quiz' // all-time quiz totals
+var MODE_KEY = 'sat-mode' // 'cards' or 'quiz', chosen on the stats page
+var FEEDBACK_MS = 700 // how long the coloured choices stay before the answer card
+
+// Built once at startup: the scheduler only needs the words, not the full entries.
+var KEYS = keysOf(WORDS)
+var ORDER = newOrder(KEYS.length)
 
 var progress = createState()
 var session = createSession()
+var quizSession = createScore() // this visit: shown in the header
+var quizTotals = createScore() // all time: shown on the stats page
+
+function wordSizeOf(w) {
+  return w.length <= 8 ? 'w-l' : w.length <= 11 ? 'w-m' : 'w-s'
+}
 
 export default {
   private: {
     state: 'loading',
+    mode: 'cards',
     flipped: false,
     word: '',
     pos: '',
@@ -58,17 +95,25 @@ export default {
     tag: '',
     tagClass: '',
     learned: 0,
-    total: WORDS.length
+    total: WORDS.length,
+    qKind: 'def',
+    choices: [],
+    smallSize: '',
+    verdict: '',
+    verdictClass: '',
+    resultClass: ''
   },
 
   onInit() {
     this.current = -1
+    this.question = null
+    this.feedbackTimer = null
     this.reloadOnShow = false
     this.load()
   },
 
   onShow() {
-    // Coming back from the stats page: progress may have been reset there.
+    // Coming back from the stats page: the mode may have changed or progress been reset there.
     if (this.reloadOnShow) {
       this.reloadOnShow = false
       this.load()
@@ -79,20 +124,31 @@ export default {
     this.save()
   },
 
+  onDestroy() {
+    clearTimeout(this.feedbackTimer)
+  },
+
   // The in-memory session (which "Again" cards are waiting) is kept across reloads; after a
   // reset its entries simply refer to unseen words, which nextCard() treats as new.
   load() {
     var self = this
-    storage.get({
-      key: STORAGE_KEY,
-      success: function (text) {
-        progress = deserialize(text)
-        self.next()
-      },
-      fail: function () {
-        progress = createState()
-        self.next()
-      }
+    clearTimeout(this.feedbackTimer)
+    function read(key, done) {
+      storage.get({
+        key: key,
+        success: function (text) { done(text) },
+        fail: function () { done('') }
+      })
+    }
+    read(STORAGE_KEY, function (text) {
+      progress = deserialize(text)
+      read(QUIZ_KEY, function (quiz) {
+        quizTotals = deserializeScore(quiz)
+        read(MODE_KEY, function (mode) {
+          self.mode = mode === 'quiz' ? 'quiz' : 'cards'
+          self.next()
+        })
+      })
     })
   },
 
@@ -103,9 +159,9 @@ export default {
 
   next() {
     var today = dayNumber()
-    this.learned = stats(progress, WORDS, today).learned
+    this.learned = stats(progress, KEYS, today).learned
     this.flipped = false
-    var i = nextCard(progress, WORDS, ORDER, today, session)
+    var i = nextCard(progress, KEYS, ORDER, today, session)
     this.current = i
     if (i < 0) {
       this.state = 'done'
@@ -113,13 +169,18 @@ export default {
       this.tagClass = 'tag-done'
       return
     }
-    var e = WORDS[i]
-    var card = progress.cards[e[0]]
+    var e = entryAt(WORDS, i)
     this.word = e[0]
     this.pos = partOfSpeech(e[1])
     this.def = e[2]
     this.ex = e[3]
-    this.wordSize = e[0].length <= 8 ? 'w-l' : e[0].length <= 11 ? 'w-m' : 'w-s'
+    this.wordSize = wordSizeOf(e[0])
+    this.smallSize = e[0].length <= 12 ? '' : 'ws-s'
+    if (this.mode === 'quiz') {
+      this.showQuestion(i)
+      return
+    }
+    var card = progress.cards[e[0]]
     if (isNew(progress, e[0])) {
       this.tag = 'NEW'
       this.tagClass = 'tag-new'
@@ -139,22 +200,81 @@ export default {
 
   answerKnow() {
     this.grade(true)
+    this.next()
   },
 
   answerAgain() {
     this.grade(false)
+    this.next()
   },
 
+  // Flashcards and quiz both move the word through the same Leitner boxes.
   grade(known) {
     if (this.current < 0) return
-    answer(progress, WORDS[this.current][0], known, dayNumber(), session)
+    answer(progress, KEYS[this.current], known, dayNumber(), session)
     this.save()
+  },
+
+  // "QUIZ", then the session score as a percentage: short enough to share the header with
+  // the learned count even when that has four digits.
+  quizTag() {
+    var pct = accuracy(quizSession)
+    this.tag = pct < 0 ? 'QUIZ' : pct + '%'
+    this.tagClass = 'tag-quiz'
+  },
+
+  showQuestion(i) {
+    var q = makeQuestion(WORDS, i, Math.random)
+    var list = []
+    for (var k = 0; k < q.choices.length; k++) {
+      var text = choiceText(WORDS, q, k)
+      // definitions in a smaller font; words big, unless long enough to wrap
+      var size = q.kind === 'def' ? 'c-s' : text.length <= 11 ? 'c-l' : 'c-m'
+      list.push({ text: text, size: size, cls: '', lcls: '' })
+    }
+    this.question = q
+    this.qKind = q.kind
+    this.choices = list
+    this.quizTag()
+    this.state = 'quiz'
+  },
+
+  pick(k) {
+    var q = this.question
+    if (this.state !== 'quiz' || !q || q.picked !== undefined) return
+    q.picked = k
+    var ok = isCorrect(q, k)
+    record(quizSession, ok)
+    record(quizTotals, ok)
+    storage.set({ key: QUIZ_KEY, value: serializeScore(quizTotals) })
+    this.grade(ok)
+    // Colour first: the right answer green, a wrong pick red, the rest dimmed.
+    var list = []
+    for (var j = 0; j < this.choices.length; j++) {
+      var cls = j === q.correct ? 'right' : j === k ? 'wrong' : 'dim'
+      list.push({ text: this.choices[j].text, size: this.choices[j].size, cls: cls, lcls: cls === 'dim' ? 'l-dim' : '' })
+    }
+    this.choices = list
+    this.quizTag()
+    this.verdict = ok
+      ? (quizSession.streak > 1 ? 'Correct! Streak ' + quizSession.streak : 'Correct!')
+      : 'Not quite'
+    this.verdictClass = ok ? 'v-right' : 'v-wrong'
+    this.resultClass = ok ? 'res-right' : 'res-wrong'
+    var self = this
+    this.feedbackTimer = setTimeout(function () {
+      if (self.state === 'quiz') self.state = 'result'
+    }, FEEDBACK_MS)
+  },
+
+  nextQuestion() {
+    this.question = null
     this.next()
   },
 
   openStats() {
     if (this.state === 'loading') return
-    var s = stats(progress, WORDS, dayNumber())
+    var s = stats(progress, KEYS, dayNumber())
     this.save()
     this.reloadOnShow = true
     router.push({
@@ -165,7 +285,11 @@ export default {
         learned: s.learned,
         mastered: s.mastered,
         due: s.due,
-        boxes: s.boxes.join(',')
+        boxes: s.boxes.join(','),
+        mode: this.mode,
+        quizAnswered: quizTotals.answered,
+        quizCorrect: quizTotals.correct,
+        quizBest: quizTotals.best
       }
     })
   }
@@ -277,6 +401,10 @@ export default {
   color: #ffb340;
 }
 
+.ws-s {
+  font-size: 17px;
+}
+
 .pos {
   margin-top: 4px;
   font-size: 15px;
@@ -322,6 +450,107 @@ export default {
   font-size: 20px;
   color: #ffffff;
   text-align: center;
+}
+
+.tag-quiz {
+  color: #bf5af2;
+}
+
+.quiz {
+  flex: 1;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.prompt {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 8px;
+  border-radius: 20px;
+  background-color: #1c1c1e;
+}
+
+.prompt-def {
+  font-size: 19px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.choice {
+  flex: 1;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.choice-label {
+  color: #ffffff;
+  text-align: center;
+}
+
+.c-s {
+  font-size: 16px;
+}
+
+.c-m {
+  font-size: 18px;
+}
+
+.c-l {
+  font-size: 21px;
+}
+
+.right {
+  background-color: #12512a;
+}
+
+.wrong {
+  background-color: #5c1a16;
+}
+
+.dim {
+  background-color: #1c1c1e;
+}
+
+.l-dim {
+  color: #636366;
+}
+
+.verdict {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.v-right {
+  color: #32d74b;
+}
+
+.v-wrong {
+  color: #ff453a;
+}
+
+.res-right {
+  border-width: 2px;
+  border-color: #32d74b;
+}
+
+.res-wrong {
+  border-width: 2px;
+  border-color: #ff453a;
+}
+
+.next {
+  height: 64px;
+  margin-top: 10px;
+  border-radius: 20px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
 }
 
 .hint {

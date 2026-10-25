@@ -3,6 +3,14 @@
     <div class="back" onclick="goBack">
       <text class="back-label">‹ Back</text>
     </div>
+    <div class="modes">
+      <div class="mode {{mode === 'cards' ? 'mode-on' : ''}}" onclick="chooseCards">
+        <text class="mode-label">Cards</text>
+      </div>
+      <div class="mode {{mode === 'quiz' ? 'mode-on' : ''}}" onclick="chooseQuiz">
+        <text class="mode-label">Quiz</text>
+      </div>
+    </div>
     <list class="list">
       <list-item type="head" class="head-item">
         <text class="big">{{learned}}</text>
@@ -32,6 +40,8 @@ import storage from '@system.storage'
 import router from '@system.router'
 
 var STORAGE_KEY = 'sat-v1'
+var QUIZ_KEY = 'sat-quiz'
+var MODE_KEY = 'sat-mode'
 var BAR_WIDTH = 160 // design px, matches .bar
 
 export default {
@@ -42,7 +52,11 @@ export default {
     learned: 0,
     mastered: 0,
     due: 0,
-    boxes: ''
+    boxes: '',
+    mode: 'cards',
+    quizAnswered: 0,
+    quizCorrect: 0,
+    quizBest: 0
   },
 
   private: {
@@ -67,6 +81,11 @@ export default {
       if (boxes[b] === '') continue
       rows.push({ label: b === 0 ? 'Box 0 (again)' : 'Box ' + b, value: parseInt(boxes[b], 10) || 0 })
     }
+    var answered = parseInt(this.quizAnswered, 10) || 0
+    var correct = parseInt(this.quizCorrect, 10) || 0
+    rows.push({ label: 'Quiz answers', value: answered })
+    rows.push({ label: 'Quiz accuracy', value: answered ? Math.round((100 * correct) / answered) + '%' : '–' })
+    rows.push({ label: 'Best streak', value: parseInt(this.quizBest, 10) || 0 })
     this.rows = rows
     this.resetTimer = null
   },
@@ -81,8 +100,29 @@ export default {
     clearTimeout(this.resetTimer)
     this.confirmReset = false
     // The card page reloads progress from storage when it is shown again.
-    storage.delete({
-      key: STORAGE_KEY,
+    function deleteProgress() {
+      storage.delete({
+        key: STORAGE_KEY,
+        success: function () { router.back() },
+        fail: function () { router.back() }
+      })
+    }
+    storage.delete({ key: QUIZ_KEY, success: deleteProgress, fail: deleteProgress })
+  },
+
+  chooseCards() {
+    this.chooseMode('cards')
+  },
+
+  chooseQuiz() {
+    this.chooseMode('quiz')
+  },
+
+  // Saves the mode and goes back to the card page, which reads it when it is shown again.
+  chooseMode(mode) {
+    storage.set({
+      key: MODE_KEY,
+      value: mode,
       success: function () { router.back() },
       fail: function () { router.back() }
     })
@@ -115,6 +155,31 @@ export default {
 .back-label {
   font-size: 22px;
   color: #ffb340;
+}
+
+.modes {
+  height: 48px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.mode {
+  width: 86px;
+  height: 48px;
+  border-radius: 24px;
+  background-color: #1c1c1e;
+  justify-content: center;
+  align-items: center;
+}
+
+.mode-on {
+  background-color: #bf5af2;
+}
+
+.mode-label {
+  font-size: 20px;
+  color: #ffffff;
 }
 
 .list {

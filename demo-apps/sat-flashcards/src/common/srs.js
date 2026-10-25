@@ -42,14 +42,15 @@ export function newOrder(n, seed) {
   return order;
 }
 
+// keys: the words of the list (deck.js keysOf), in list order.
 // Picks the next word index, or -1 when nothing is due and every word has been seen.
 // Order: due cards (lowest box first, then oldest), then a new word, then "Again"
 // cards still waiting out their gap (so the user is never left with an empty screen).
-export function nextCard(state, words, order, today, session) {
+export function nextCard(state, keys, order, today, session) {
   var best = -1, bestCard = null;
   var held = -1, heldSoon = Infinity;
-  for (var i = 0; i < words.length; i++) {
-    var w = words[i][0];
+  for (var i = 0; i < keys.length; i++) {
+    var w = keys[i];
     var c = state.cards[w];
     if (!c || c.d > today) continue;
     var soon = session.soon[w];
@@ -68,7 +69,7 @@ export function nextCard(state, words, order, today, session) {
   }
   if (best >= 0) return best;
   for (var j = 0; j < order.length; j++) {
-    if (!state.cards[words[order[j]][0]]) return order[j];
+    if (!state.cards[keys[order[j]]]) return order[j];
   }
   return held;
 }
@@ -91,11 +92,11 @@ export function answer(state, word, known, today, session) {
 }
 
 // Counts over the bundled list only (stale entries for removed words are ignored).
-export function stats(state, words, today) {
-  var s = { total: words.length, seen: 0, learned: 0, mastered: 0, due: 0, boxes: [] };
+export function stats(state, keys, today) {
+  var s = { total: keys.length, seen: 0, learned: 0, mastered: 0, due: 0, boxes: [] };
   for (var b = 0; b <= MAX_BOX; b++) s.boxes.push(0);
-  for (var i = 0; i < words.length; i++) {
-    var c = state.cards[words[i][0]];
+  for (var i = 0; i < keys.length; i++) {
+    var c = state.cards[keys[i]];
     if (!c) continue;
     s.seen++;
     s.boxes[c.b]++;

@@ -117,9 +117,9 @@
       "id": "uk.trinh.miband.sat",
       "name": "SAT Flashcards",
       "description": {
-        "en": "Learn 372 SAT words on your wrist: tap a card to flip, then Know it or Again. Spaced repetition, progress saved on the band.",
-        "zh": "在手腕上背 372 个 SAT 单词：点击卡片翻面，再选“Know it”或“Again”。间隔重复，学习进度保存在手环上。",
-        "vi": "Học 372 từ vựng SAT trên cổ tay: bấm thẻ để lật, rồi chọn Know it hoặc Again. Ôn lặp ngắt quãng, tiến độ lưu trên band."
+        "en": "Learn 1,355 SAT words on your wrist: flip cards (Know it / Again) or take a multiple-choice quiz, word to meaning and meaning to word. Spaced repetition shared by both modes, quiz accuracy and progress saved on the band.",
+        "zh": "在手腕上背 1,355 个 SAT 单词：翻卡片（Know it / Again），或做选择题测验（看单词选释义、看释义选单词）。两种模式共用间隔重复进度，测验正确率和学习进度保存在手环上。",
+        "vi": "Học 1.355 từ vựng SAT trên cổ tay: lật thẻ (Know it / Again) hoặc làm trắc nghiệm, từ sang nghĩa và nghĩa sang từ. Hai chế độ dùng chung lịch ôn lặp ngắt quãng; độ chính xác trắc nghiệm và tiến độ lưu trên band."
       },
       "file": "apps/sat.rpk",
       "icon": "apps/sat.png",
@@ -132,9 +132,9 @@
         {
           "src": "apps/screens/sat-1.png",
           "alt": {
-            "en": "SAT Flashcards: front of a new card, “meticulous”",
-            "zh": "SAT 单词卡：新卡片正面，“meticulous”",
-            "vi": "SAT Flashcards: mặt trước thẻ mới, “meticulous”"
+            "en": "SAT Flashcards quiz: “meticulous” with four definitions, a wrong pick in red and the right answer in green",
+            "zh": "SAT 单词卡测验：“meticulous”和四个释义，选错的显示为红色，正确答案为绿色",
+            "vi": "SAT Flashcards trắc nghiệm: “meticulous” với bốn nghĩa, lựa chọn sai tô đỏ, đáp án đúng tô xanh"
           }
         },
         {
@@ -148,9 +148,9 @@
         {
           "src": "apps/screens/sat-3.png",
           "alt": {
-            "en": "SAT Flashcards: progress page, 48 of 372 words learned",
-            "zh": "SAT 单词卡：进度页，已掌握 372 个单词中的 48 个",
-            "vi": "SAT Flashcards: trang tiến độ, đã thuộc 48 trên 372 từ"
+            "en": "SAT Flashcards: progress page with the Cards / Quiz switch, 48 of 1355 words learned",
+            "zh": "SAT 单词卡：进度页，带卡片 / 测验切换，已掌握 1355 个单词中的 48 个",
+            "vi": "SAT Flashcards: trang tiến độ với nút chuyển Cards / Quiz, đã thuộc 48 trên 1355 từ"
           }
         }
       ]

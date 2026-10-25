@@ -40,7 +40,7 @@ describe('SAT Flashcards demo app', () => {
     if (parsed.kind !== 'rpk') return;
     expect(parsed.id).toBe(entry.id);
     expect(parsed.name).toBe(entry.name);
-    expect(parsed.version).toBe('1.0.0');
+    expect(parsed.version).toBe('1.1.0');
   });
 
   it('is signed with the public demo key and contains both pages', () => {
@@ -53,6 +53,7 @@ describe('SAT Flashcards demo app', () => {
     expect(names).toEqual(expect.arrayContaining(['pages/index/index.js', 'pages/stats/index.js', 'common/logo.png']));
     const manifest = JSON.parse(td.decode(readZip(rpk).entries.find((e) => e.name === 'manifest.json')!.data));
     expect(manifest.config.designWidth).toBe(192);
+    expect(manifest.versionCode).toBe(2);
     expect(manifest.features.map((f: { name: string }) => f.name).sort()).toEqual(['system.router', 'system.storage']);
   });
 });

@@ -1,13 +1,19 @@
 <!-- ux: demo-apps/sat-flashcards/src/pages/index/index.ux -->
-<!-- State: a new card, front side ("meticulous" is 10 letters, so wordSize is w-m). -->
+<!-- State: quiz (session score 7 of 9 = 78%), word -> definition, just after a wrong pick: the right answer green, the pick red,
+     the rest dimmed (for 700 ms, then the answer card). Distractors are real entries of the list. -->
 <div class="page">
   <div class="top">
-    <text class="tag tag-new">NEW</text>
-    <text class="count">48/372 ›</text>
+    <text class="tag tag-quiz">78%</text>
+    <text class="count">48/1355 ›</text>
   </div>
-  <div class="card">
-    <text class="word w-m">meticulous</text>
-    <text class="pos">adjective</text>
+  <div class="quiz">
+    <div class="prompt">
+      <text class="word w-m">meticulous</text>
+      <text class="pos">adjective</text>
+    </div>
+    <div class="choice dim"><text class="choice-label c-s l-dim">lacking respect</text></div>
+    <div class="choice wrong"><text class="choice-label c-s">having many sides</text></div>
+    <div class="choice right"><text class="choice-label c-s">extremely careful</text></div>
+    <div class="choice dim"><text class="choice-label c-s l-dim">open to bribery</text></div>
   </div>
-  <text class="hint">Tap card to flip</text>
 </div>

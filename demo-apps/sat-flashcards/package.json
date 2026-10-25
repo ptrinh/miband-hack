@@ -1,8 +1,8 @@
 {
   "name": "miband-sat-flashcards",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "SAT vocabulary flashcards quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app), Leitner-box review saved on the band",
+  "description": "SAT vocabulary flashcards and quiz quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app), Leitner-box review saved on the band",
   "license": "MIT",
   "engines": {
     "node": ">=18"
@@ -11,8 +11,8 @@
     "build": "aiot build",
     "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
     "release": "npm run presign && aiot release",
-    "publish-demo": "npm run release && cp dist/uk.trinh.miband.sat.release.1.0.0.rpk ../../public/apps/sat.rpk && cp src/common/logo.png ../../public/apps/sat.png",
-    "test": "node --no-warnings test/srs-check.mjs"
+    "publish-demo": "npm run release && cp dist/uk.trinh.miband.sat.release.1.1.0.rpk ../../public/apps/sat.rpk && cp src/common/logo.png ../../public/apps/sat.png",
+    "test": "node --no-warnings test/srs-check.mjs && node --no-warnings test/quiz-check.mjs"
   },
   "devDependencies": {
     "aiot-toolkit": "2.0.5"
