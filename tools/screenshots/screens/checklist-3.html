@@ -1,0 +1,15 @@
+<!-- ux: demo-apps/checklist/src/pages/list/index.ux -->
+<!-- State: a packing list scrolled to the end; Uncheck all tapped once, waiting for the second tap. -->
+<div class="page">
+  <div class="top">
+    <div class="back"><text class="back-label">‹ Back</text></div>
+    <text class="count">2/5</text>
+  </div>
+  <list class="list">
+    <list-item class="row"><div class="box"><div class="mark"></div></div><text class="text">Swimsuit and towel for the hotel pool</text></list-item>
+    <list-item class="row row-done"><div class="box box-on"><div class="mark mark-on"></div></div><text class="text text-done">Sunglasses</text></list-item>
+    <list-item class="row"><div class="box"><div class="mark"></div></div><text class="text">Toothbrush</text></list-item>
+    <list-item class="reset-item"><div class="reset warn"><text class="reset-label reset-label-warn">Tap again</text></div></list-item>
+    <list-item class="end-item"><text class="end"> </text></list-item>
+  </list>
+</div>

@@ -62,6 +62,8 @@ Every band has its own key issued by Xiaomi. Without it, the computer cannot tal
 
 **Notes app (your own notes):** press **Edit notes** next to the Notes app, type the title and content of each note (add as many as you like), then press **Add**. On the band: the note list → tap one to read it → the **Back** button to go back. To change the content, edit it on the page and press **Add** again. Notes are **saved automatically in the browser**: they're still there after reloading the page or reopening it the next day. Use **Export** to download a `.json` backup (recommended, since clearing browser data deletes your notes), and **Import** to load it back or move it to another computer.
 
+**Checklist app (shopping, to-do, packing lists):** press **Edit lists** next to the Checklist app. Give each list a title and add items (Enter adds the next item; ↑ ↓ reorder, ✕ removes), then press **Add**. On the band: the lists with their progress (e.g. 3/8) → tap a list → tap an item to tick it off (tap again to untick) → **Uncheck all** asks for a second tap → **Back** returns. Ticks are saved on the band. When you edit the lists and press **Add** again, items you kept stay ticked and new items start unticked. Like notes, the lists are saved only in this browser: **Export** / **Import** move them between computers.
+
 **Change the language:** the **EN · 中文 · VI** buttons in the top corner.
 
 **Install your own file:** drag and drop a `.rpk` file (app) or `.bin` file (watchface) onto the **"Or install your own file"** box, then press **Install to band**.

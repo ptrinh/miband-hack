@@ -1,0 +1,20 @@
+{
+  "name": "miband-checklist",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Checklist quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app): lists written in the browser live in /common/lists.json, ticks are saved on the band",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "aiot build",
+    "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
+    "release": "npm run presign && aiot release",
+    "publish-demo": "npm run release && cp dist/uk.trinh.miband.checklist.release.1.0.0.rpk ../../public/apps/checklist.rpk && cp src/common/logo.png ../../public/apps/checklist.png",
+    "test": "node --no-warnings test/model-check.mjs && node --no-warnings test/page-check.mjs"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "2.0.5"
+  }
+}

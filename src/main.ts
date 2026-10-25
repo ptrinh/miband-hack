@@ -8,7 +8,9 @@ import { StreamLink } from './protocol/stream-link';
 import { requestBle, webBluetoothAvailable } from './transport/ble';
 import { SerialTransport, webSerialAvailable } from './transport/serial';
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
-import { buildNotesRpk, notesVersionCode, type Note } from './rpk';
+import { buildChecklistRpk, buildNotesRpk, customVersionCode, type Note } from './rpk';
+import { bindImport, downloadJson, loadStored, saveStored } from './custom-editor';
+import { checklistsForBand, mountChecklist, renderChecklistEditor } from './checklist/ui';
 import { mountHealth, renderHealth } from './health/ui';
 
 const KEY_STORAGE = 'miband-hack.authkey';
@@ -120,6 +122,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <span class="progress-label" id="notes-saved" style="margin:0 0 0 auto"></span>
         </div>
       </div>
+      <div id="checklist-editor" class="notes-editor hidden"></div>
       <p class="hint" id="catalog-hint" data-i18n-html="catalogHint"></p>
     </section>
 
@@ -511,7 +514,14 @@ drop.ondrop = (e) => {
 
 /** A preview image rendered by tools/screenshots (not a photo of a real band); alt may be per language. */
 interface CatalogShot { src: string; alt?: string | Record<string, string> }
-interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes'; screenshots?: CatalogShot[] }
+interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: CustomizeKind; screenshots?: CatalogShot[] }
+
+/** Apps whose content is written here and packed into the rpk in the browser, with their editor panel. */
+type CustomizeKind = 'notes' | 'checklist';
+const EDITORS: Record<CustomizeKind, { panel: string; render: () => void; edit: 'notesEdit' | 'checklistEdit'; hide: 'notesHide' | 'checklistHide' }> = {
+  notes: { panel: 'notes-editor', render: () => renderNotesEditor(), edit: 'notesEdit', hide: 'notesHide' },
+  checklist: { panel: 'checklist-editor', render: () => renderChecklistEditor(), edit: 'checklistEdit', hide: 'checklistHide' },
+};
 
 let catalog: CatalogApp[] = [];
 let catalogBusy = false;
@@ -559,14 +569,17 @@ function renderCatalog(): void {
     const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy);
     if (!installed) btn.classList.add('primary');
     li.append(details);
-    if (app.customize === 'notes') {
-      const open = !$('notes-editor').classList.contains('hidden');
+    const editor = app.customize && EDITORS[app.customize];
+    if (editor) {
+      const open = !$(editor.panel).classList.contains('hidden');
       const edit = document.createElement('button');
       edit.className = 'small';
-      edit.textContent = open ? t('notesHide') : t('notesEdit');
+      edit.textContent = open ? t(editor.hide) : t(editor.edit);
+      edit.setAttribute('aria-expanded', String(open));
+      edit.setAttribute('aria-controls', editor.panel);
       edit.onclick = () => {
-        $('notes-editor').classList.toggle('hidden');
-        renderNotesEditor();
+        $(editor.panel).classList.toggle('hidden');
+        editor.render();
         renderCatalog();
       };
       li.append(edit);
@@ -655,7 +668,10 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
     let bytes: Uint8Array = new Uint8Array(await r.arrayBuffer());
     if (app.customize === 'notes') {
       label.textContent = t('notesBuilding');
-      bytes = await buildNotesRpk(bytes, notes.filter((n) => n.title.trim() || n.body.trim()), undefined, { versionCode: notesVersionCode() });
+      bytes = await buildNotesRpk(bytes, notes.filter((n) => n.title.trim() || n.body.trim()), undefined, { versionCode: customVersionCode() });
+    } else if (app.customize === 'checklist') {
+      label.textContent = t('checklistBuilding');
+      bytes = await buildChecklistRpk(bytes, checklistsForBand(), undefined, { versionCode: customVersionCode() });
     }
     const parsed = parseFile(bytes);
     if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : t('notRpk'));
@@ -681,15 +697,8 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
 const NOTES_STORAGE = 'miband-hack.notes';
 
 function loadNotes(): Note[] {
-  try {
-    const raw = localStorage.getItem(NOTES_STORAGE);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Note[];
-      if (Array.isArray(parsed)) return parsed.filter((n) => typeof n?.title === 'string' && typeof n?.body === 'string');
-    }
-  } catch {
-    /* storage blocked or corrupt */
-  }
+  const parsed = loadStored(NOTES_STORAGE) as Note[] | undefined;
+  if (Array.isArray(parsed)) return parsed.filter((n) => typeof n?.title === 'string' && typeof n?.body === 'string');
   return [{ title: t('notesSample1Title'), body: t('notesSample1Body') }];
 }
 
@@ -698,12 +707,7 @@ let notes: Note[] = loadNotes();
 let notesSaveOk = true;
 
 function saveNotes(): void {
-  try {
-    localStorage.setItem(NOTES_STORAGE, JSON.stringify(notes));
-    notesSaveOk = true;
-  } catch {
-    notesSaveOk = false;
-  }
+  notesSaveOk = saveStored(NOTES_STORAGE, notes);
   renderNotesStatus();
 }
 
@@ -724,13 +728,7 @@ function parseNotesFile(text: string): Note[] {
 }
 
 function exportNotes(): void {
-  const json = JSON.stringify({ app: 'miband-hack-notes', version: 1, exported: new Date().toISOString(), notes }, null, 2);
-  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `miband-notes-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadJson('miband-notes', { app: 'miband-hack-notes', version: 1, exported: new Date().toISOString(), notes });
 }
 
 async function importNotes(file: File): Promise<void> {
@@ -782,13 +780,7 @@ function renderNotesEditor(): void {
 }
 
 $('btn-notes-export').onclick = () => exportNotes();
-$('btn-notes-import').onclick = () => $<HTMLInputElement>('notes-file').click();
-$<HTMLInputElement>('notes-file').onchange = (e) => {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = ''; // allow importing the same file again
-  if (file) importNotes(file).catch(fail);
-};
+bindImport($('btn-notes-import'), $<HTMLInputElement>('notes-file'), importNotes, fail);
 
 $('btn-note-add').onclick = () => {
   notes.push({ title: '', body: '' });
@@ -926,6 +918,7 @@ function localize(): void {
   applyI18n();
   setQrLink();
   renderNotesEditor();
+  renderChecklistEditor();
   renderLangSwitch();
   renderSupport();
   render();
@@ -933,6 +926,7 @@ function localize(): void {
 }
 
 mountHealth($('card-health'), { device: () => device, log, toast, fail });
+mountChecklist($('checklist-editor'), { toast, fail });
 localize();
 void loadCatalog();
 log(t('ready'));
