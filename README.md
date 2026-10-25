@@ -62,6 +62,10 @@ Cần proxy vì API của Xiaomi không cho trình duyệt gọi thẳng (chặn
 
 > **Chưa kiểm chứng:** key lấy từ cloud Mi Home có đúng là auth key của Mi Band hay không (beaconkey của cảm biến BLE thường chỉ dài 24 hex). UI cảnh báo nếu key không đủ 32 hex.
 
+## Health data
+
+Download what the band recorded (steps, heart rate, sleep, SpO₂, stress, workouts) as JSON, CSV or raw files, query it with your own AI agent through a local MCP server ([`tools/health-mcp`](tools/health-mcp/README.md)), or opt in to a cloud API with per-user keys. Format, API, privacy and what is still untested: [docs/health-data.md](docs/health-data.md).
+
 ## Deploy
 
 Một Worker phục vụ cả trang tĩnh (`dist/`) lẫn `/api/*`, gắn custom domain `miband.trinh.uk`:
