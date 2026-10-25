@@ -167,7 +167,7 @@ export class XiaomiDevice {
       return;
     }
     if (cmd.type === AUTH_COMMAND_TYPE) {
-      this.handleAuth(cmd);
+      this.handleAuth(cmd, bytes);
       return;
     }
     this.handlePassive(cmd);
@@ -180,10 +180,12 @@ export class XiaomiDevice {
     }
   }
 
-  private handleAuth(cmd: Command): void {
+  private handleAuth(cmd: Command, raw: Uint8Array): void {
     if (cmd.subtype === CMD_NONCE) {
       const dv = cmd.auth?.deviceVerify;
       if (!dv) {
+        // The raw reply (no key material: nonces and status codes only) tells why the band refused.
+        this.onLog(`← auth reply without a watch nonce (${raw.length} bytes): ${hex(raw, 64)}`);
         this.authDone.reject(new Error(t('errHandshake', { status: cmd.auth?.status ?? cmd.status ?? '?' })));
         return;
       }
