@@ -1,7 +1,7 @@
 import './style.css';
-import { parseAuthKey } from './core/auth';
+import { AUTH_VARIANTS, type AuthVariant, parseAuthKey } from './core/auth';
 import { type ParsedFile, parseFile } from './core/files';
-import { type InstalledApp, type InstalledFace, XiaomiDevice } from './device';
+import { type ConnectOptions, type InstalledApp, type InstalledFace, XiaomiDevice } from './device';
 import { BleV1Link } from './protocol/ble-v1-link';
 import type { Link } from './protocol/link';
 import { StreamLink } from './protocol/stream-link';
@@ -114,6 +114,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <li data-i18n-html="before2"></li>
           <li data-i18n-html="before3"></li>
         </ol>
+        <label for="auth-variant" style="font-weight:400;color:var(--muted)" data-i18n="authVariantLabel"></label>
+        <select id="auth-variant">
+          <option value="auto" data-i18n="authVariantAuto"></option>
+          <option value="nonce" data-i18n="authVariantNonce"></option>
+          <option value="id" data-i18n="authVariantId"></option>
+          <option value="uuid" data-i18n="authVariantUuid"></option>
+          <option value="code" data-i18n="authVariantCode"></option>
+          <option value="l1-ios" data-i18n="authVariantL1Ios"></option>
+        </select>
       </details>
     </section>
 
@@ -300,6 +309,16 @@ function readKey(): Uint8Array {
   return key;
 }
 
+/** Handshake variant from the selector; `?auth=<variant>` and `?companion=ios|android` set them from the URL. */
+function readConnectOptions(): ConnectOptions {
+  const v = $<HTMLSelectElement>('auth-variant').value;
+  const companion = new URLSearchParams(location.search).get('companion');
+  return {
+    authVariant: (AUTH_VARIANTS as readonly string[]).includes(v) ? (v as AuthVariant) : 'auto',
+    companion: companion === 'ios' || companion === 'android' ? companion : 'auto',
+  };
+}
+
 function readDeviceId(): string {
   return $<HTMLInputElement>('deviceid').value.trim();
 }
@@ -324,7 +343,7 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
       const c = await requestBle();
       link = c.kind === 'v2' ? new StreamLink(c.transport, 'v2') : new BleV1Link(c.device, c.chars);
     }
-    const dev = new XiaomiDevice(link, key, readDeviceId());
+    const dev = new XiaomiDevice(link, key, readDeviceId(), readConnectOptions());
     dev.onLog = (m) => log(m, m.startsWith('✓') ? 'ok' : m.startsWith('⚠') ? 'e' : undefined);
     dev.onChange = () => render();
     dev.onDisconnect = () => {
@@ -521,6 +540,13 @@ if (saved) {
   $<HTMLInputElement>('remember').checked = true;
 }
 $<HTMLInputElement>('deviceid').value = deviceIdStorage.get() ?? '';
+{
+  const v = new URLSearchParams(location.search).get('auth');
+  if (v && (AUTH_VARIANTS as readonly string[]).includes(v)) {
+    $<HTMLSelectElement>('auth-variant').value = v;
+    $('auth-variant').closest('details')?.setAttribute('open', '');
+  }
+}
 
 $('btn-spp').onclick = () => void connect('spp');
 $('btn-ble').onclick = () => void connect('ble');

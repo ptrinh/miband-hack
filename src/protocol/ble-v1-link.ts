@@ -198,6 +198,7 @@ class XiaomiCharacteristic {
 
 export class BleV1Link implements Link {
   readonly name = 'BLE V1';
+  readonly overBle = true;
   auth: AuthSession | null = null;
   onReadyForAuth = noop;
   onCommand: (b: Uint8Array) => void = noop;

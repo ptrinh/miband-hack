@@ -3,6 +3,8 @@ import type { AuthSession } from '../core/auth';
 /** Framing layer between the device logic and a transport. */
 export interface Link {
   readonly name: string;
+  /** The link runs over Bluetooth LE (BLE V1 or V2), as an iPhone's Mi Fitness does. */
+  readonly overBle: boolean;
   auth: AuthSession | null;
   /** The band is ready for the auth handshake (session established). */
   onReadyForAuth: () => void;
@@ -18,6 +20,11 @@ export interface Link {
   /** Sends one data-upload part; resolves once the link can accept the next one. */
   sendData(chunk: Uint8Array): Promise<void>;
   onAuthSuccess(): void;
+  /**
+   * SPP V2 / BLE V2 only: starts the session again, optionally with a device type in the session config;
+   * onReadyForAuth fires again when the band answers.
+   */
+  restartSession?(deviceType?: number): Promise<void>;
   close(): Promise<void>;
 }
 

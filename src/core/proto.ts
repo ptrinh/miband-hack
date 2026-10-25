@@ -18,10 +18,13 @@ message Command {
   optional uint32 status = 100;
 }
 
+// Field names in comments are Xiaomi's own, from the fuller schema in AstroBox-NG-Module-Pb
+// (protos/xiaomi/wear_account.proto): Account is a oneof there.
 message Account {
-  // Sent instead of a DeviceVerify when the band refuses step 1 (seen: 4 from a Mi Band 10 paired on an
-  // iPad when no deviceId was sent).
-  optional uint32 refusal = 3;
+  optional bool bindStatus = 1;         // bind_status: the band's answer to subtype 0 (BIND_STATUS)
+  // error_code (Account.ErrorCode): sent instead of a DeviceVerify when the band refuses step 1.
+  // 4 = NO_BOUND, seen from a Mi Band 10 paired with Mi Fitness on an iPad. See ACCOUNT_ERRORS in auth.ts.
+  optional uint32 errorCode = 3;
   optional string userId = 7;
   optional uint32 status = 8;
   optional AppVerify appVerify = 30;
@@ -31,8 +34,9 @@ message Account {
 }
 
 message AppVerify {
-  required bytes nonce = 1;
-  optional string deviceId = 2;
+  required bytes nonce = 1;             // app_random
+  optional string deviceId = 2;         // app_device_id
+  optional bool checkDynamicCode = 3;   // check_dynamic_code
 }
 message DeviceVerify {
   required bytes nonce = 1;
@@ -49,7 +53,7 @@ message DeviceConfirm {
 }
 
 message CompanionDevice {
-  required uint32 unknown1 = 1;
+  required uint32 unknown1 = 1;         // device_type: 0 ANDROID, 1 IOS, 2 VELA, 15 OTHER
   required float phoneApiLevel = 2;
   required string phoneName = 3;
   required uint32 unknown3 = 4;
@@ -158,12 +162,14 @@ export interface Command {
   type: number;
   subtype?: number;
   auth?: {
-    refusal?: number;
+    bindStatus?: boolean;
+    errorCode?: number;
     userId?: string;
     status?: number;
-    appVerify?: { nonce: Uint8Array; deviceId?: string };
+    appVerify?: { nonce: Uint8Array; deviceId?: string; checkDynamicCode?: boolean };
     deviceVerify?: { nonce: Uint8Array; hmac: Uint8Array };
     appConfirm?: { encryptedNonces: Uint8Array; encryptedDeviceInfo: Uint8Array };
+    authStep4?: { unknown1?: boolean };
   };
   system?: {
     power?: { battery?: { level?: number; state?: number } };

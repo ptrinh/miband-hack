@@ -59,6 +59,16 @@ Service `0xfe95`: `0051` command read, `0052` command write, `0053` activity, `0
 5. Host → band: `subtype 27, appConfirm{encryptedNonces = HMAC(encKey, phoneNonce‖watchNonce), encryptedDeviceInfo = CCM(encKey, CompanionDevice, counter 0)}`
 6. When the band replies with subtype 27 it's done; from then on the proto channel is encrypted.
 
+### 4.1 Refusals and bands paired from iOS
+Xiaomi's own field names come from the fuller schema in [AstroBox-NG-Module-Pb](https://github.com/AstralSightStudios/AstroBox-NG-Module-Pb) (`protos/xiaomi/wear_account.proto`); Gadgetbridge's names differ.
+- `Account` is a oneof. Field 3 is `error_code` (`Account.ErrorCode`): 0 NO_ERROR, 1 HAVE_BOUND, 2 INFO_MISSING, 3 INVALID_PARAM, **4 NO_BOUND**, 5 SERVER_ERROR, 6 CANCEL, 7 VERIFY_ERROR, 8 STATE_NOT_MATCH, 9 USER_CHANGED, 10 CONNECTION_REACH_LIMIT, 100 UNKNOWN. Subtypes (`AccountID`): 0 BIND_STATUS, 1 BIND_START, 16 BOND_APPLY, 17–19/25 bind V2, **26 AUTH_VERIFY**, **27 AUTH_CONFIRM**, 28/29 pass token, 30 login status changed.
+- `AppVerify` = `{1 app_random, 2 app_device_id (string), 3 check_dynamic_code (bool)}`. `CompanionDevice.device_type`: 0 ANDROID, 1 IOS, 2 VELA, 15 OTHER (Gadgetbridge's `unknown1`). AstroBox-NG sends device_type IOS over BLE.
+- A Mi Band 10 paired with Mi Fitness on an iPad answered step 1 with `0801101a1a021804` = `error_code NO_BOUND`, both without and (apparently) with `app_device_id = detail.phone_id`. Gadgetbridge sends `app_device_id` for the Wear OS Xiaomi Watch 5 (#6614); AstroBox-NG-Module-Core accepts an optional `app_device_id` (≤ 64 bytes) for AUTH.
+- The firmware keeps the bound companion's type (Android/iOS) and Bluetooth address and lets only that companion pair without asking (qemu-miwear `emu/mksensornor.py` notes, Mi Band 10 Pro firmware).
+- The session config can carry TLV 5 (device type), 6 (device name), 7 (OS version) (`layer1cmd.rs` in AstroBox-NG-Module-Core, which does not send them). Whether a band reads TLV 5 is unverified.
+
+The webapp therefore tries several step-1 shapes in one connection (`planAuthAttempts` in `core/auth.ts`, a fresh nonce each): full Device ID, nonce only, the UUID part of the Device ID (upper/lower case), Device ID + `check_dynamic_code`, then the same after restarting the session with TLV 5 = 1. After the first NO_BOUND it asks BIND_STATUS once (read-only) and logs the answer. The connection log shows each attempt's shape (lengths and flags; never the id itself) and the band's reply. "Before you connect" has a selector to pin one variant; `?auth=<variant>` and `?companion=ios|android` set them from the URL.
+
 ## 5. Installing
 - **App**: `20/1 rpk.rpkInfo{id = package, unknown2 = versionCode, size}` → band replies `20/1 rpkInstallStart.cmd` (0 = OK) → DataUpload type **64** → band sends `20/2` when installation finishes.
 - **Watchface**: `4/4 watchfaceInstallStart{id, size}` → `installStatus` (0 OK, 2 already present) → DataUpload type **16** → `4/1 watchfaceId` to set it as the watchface.
