@@ -1,0 +1,41 @@
+<!-- ux: demo-apps/random/src/pages/index/index.ux -->
+<!-- State: dice mode, 2 dice, just rolled 3 + 5 = 8. Pips are placed by the app's own pipPositions(). -->
+<div class="page">
+  <div class="tabs">
+    <div class="tab"><text class="tab-label">123</text></div>
+    <div class="tab tab-on"><text class="tab-label">Dice</text></div>
+    <div class="tab"><text class="tab-label">Coin</text></div>
+  </div>
+  <div class="stage">
+    <div class="stage-col">
+      <div class="dice" id="dice"></div>
+      <text class="sub">3 + 5 = 8</text>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="controls-col">
+      <div class="row">
+        <div class="choice"><text class="choice-label">1 die</text></div>
+        <div class="choice choice-on"><text class="choice-label">2 dice</text></div>
+      </div>
+      <text class="hint">Tap the dice or Roll</text>
+    </div>
+  </div>
+  <div class="go"><text class="go-label">Roll</text></div>
+</div>
+<script type="module">
+  import { pipPositions } from '/demo-apps/random/src/common/random.js';
+  const dice = document.getElementById('dice');
+  for (const face of [3, 5]) {
+    const die = document.createElement('div');
+    die.className = 'die two';
+    for (const p of pipPositions(face, 72, 14)) { // as DIE.two in index.ux
+      const pip = document.createElement('div');
+      pip.className = 'pip two-pip';
+      pip.style.left = `${p.l}px`;
+      pip.style.top = `${p.t}px`;
+      die.appendChild(pip);
+    }
+    dice.appendChild(die);
+  }
+</script>

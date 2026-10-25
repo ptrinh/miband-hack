@@ -88,6 +88,49 @@
       ]
     },
     {
+      "id": "uk.trinh.miband.checklist",
+      "name": "Checklist",
+      "description": {
+        "en": "Shopping, to-do and packing lists on your wrist: write them here, then tap items on the band to tick them off. Progress per list, Uncheck all, ticks kept when you update the lists.",
+        "zh": "把购物、待办和行李清单戴在手腕上：在这里编写，然后在手环上点击条目来勾选。每个清单显示进度，可一键全部取消，更新清单时保留已勾选的条目。",
+        "vi": "Danh sách đi chợ, việc cần làm, đồ mang theo ngay trên cổ tay: soạn tại đây, rồi chạm vào từng mục trên band để đánh dấu. Có tiến độ từng danh sách, nút bỏ chọn tất cả, giữ dấu tích khi cập nhật danh sách."
+      },
+      "file": "apps/checklist.rpk",
+      "icon": "apps/checklist.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/checklist",
+      "customize": "checklist",
+      "screenshots": [
+        {
+          "src": "apps/screens/checklist-1.png",
+          "alt": {
+            "en": "Checklist: three lists with progress bars, Shopping 2/6, To do 3/3 complete, Packing 1/4",
+            "zh": "清单：三个带进度条的清单，购物 2/6，待办 3/3 已完成，行李 1/4",
+            "vi": "Checklist: ba danh sách có thanh tiến độ, Shopping 2/6, To do 3/3 đã xong, Packing 1/4"
+          }
+        },
+        {
+          "src": "apps/screens/checklist-2.png",
+          "alt": {
+            "en": "Checklist: the Shopping list opened, two items ticked off and struck through, a Back button and 2/6",
+            "zh": "清单：打开的购物清单，两个条目已勾选并划掉，带返回按钮和 2/6",
+            "vi": "Checklist: mở danh sách Shopping, hai mục đã tích và gạch ngang, có nút Back và 2/6"
+          }
+        },
+        {
+          "src": "apps/screens/checklist-3.png",
+          "alt": {
+            "en": "Checklist: end of a list with a long item wrapped over four lines and the red “Tap again” button",
+            "zh": "清单：清单末尾，一条较长的条目折成四行，下方是红色的“Tap again”（再点一次取消全部勾选）按钮",
+            "vi": "Checklist: cuối danh sách, một mục dài xuống bốn dòng và nút đỏ “Tap again”"
+          }
+        }
+      ]
+    },
+    {
       "id": "uk.trinh.miband.snake",
       "name": "Snake",
       "description": {
@@ -151,6 +194,124 @@
             "en": "SAT Flashcards: progress page with the Cards / Quiz switch, 48 of 1355 words learned",
             "zh": "SAT 单词卡：进度页，带卡片 / 测验切换，已掌握 1355 个单词中的 48 个",
             "vi": "SAT Flashcards: trang tiến độ với nút chuyển Cards / Quiz, đã thuộc 48 trên 1355 từ"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk.trinh.miband.metronome",
+      "name": "Metronome",
+      "description": {
+        "en": "Silent metronome for musicians: feel the beat as a vibration on your wrist, with a flash on screen. 30–250 BPM, tap tempo, accent on beat 1 in 2/4, 3/4, 4/4 or 6/8. Keeps your last tempo.",
+        "zh": "给音乐人的静音节拍器：节拍以手腕振动传达，屏幕同步闪烁。30–250 BPM，支持敲击测速，2/4、3/4、4/4、6/8 拍第一拍重音。会记住上次的速度。",
+        "vi": "Máy đếm nhịp im lặng cho người chơi nhạc: cảm nhận nhịp qua rung trên cổ tay, kèm nháy sáng trên màn hình. 30–250 BPM, gõ để đo nhịp, nhấn phách 1 với 2/4, 3/4, 4/4, 6/8. Nhớ nhịp độ lần trước."
+      },
+      "file": "apps/metronome.rpk",
+      "icon": "apps/metronome.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/metronome",
+      "screenshots": [
+        {
+          "src": "apps/screens/metronome-1.png",
+          "alt": {
+            "en": "Metronome running at 96 BPM in 4/4: beat 1 lit in orange, with the −/+, Tap tempo and Stop buttons",
+            "zh": "节拍器以 96 BPM、4/4 拍运行：第一拍亮起橙色，下方是 −/+、敲击测速和停止按钮",
+            "vi": "Metronome đang chạy 96 BPM nhịp 4/4: phách 1 sáng màu cam, kèm nút −/+, Tap tempo và Stop"
+          }
+        },
+        {
+          "src": "apps/screens/metronome-2.png",
+          "alt": {
+            "en": "Metronome stopped: 6/8 with a long vibration on beat 1, tempo 72 BPM set by tapping",
+            "zh": "节拍器已停止：6/8 拍，第一拍长振动，通过敲击设定为 72 BPM",
+            "vi": "Metronome đang dừng: nhịp 6/8, phách 1 rung dài, nhịp độ 72 BPM đo bằng cách gõ"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk.trinh.miband.counter",
+      "name": "Counter",
+      "description": {
+        "en": "Tally counter: tap anywhere to count, −1 and reset, goals like 33 or 100 with a long buzz, four named counters saved on the band.",
+        "zh": "计数器：点击屏幕任意处计数，支持 −1 和清零；可设目标（如 33、100），达成时长振动；四个可命名的计数器，保存在手环上。",
+        "vi": "Bộ đếm: chạm bất kỳ đâu để đếm, có −1 và đặt lại; đặt mục tiêu (33, 100…) rung dài khi đạt; bốn bộ đếm có tên, lưu trên band."
+      },
+      "file": "apps/counter.rpk",
+      "icon": "apps/counter.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/counter",
+      "screenshots": [
+        {
+          "src": "apps/screens/counter-1.png",
+          "alt": {
+            "en": "Counter: “Beads” at 27 of a 33 goal, with the −1 and Reset buttons",
+            "zh": "计数器：“Beads” 计到 27，目标 33，下方是 −1 和清零按钮",
+            "vi": "Bộ đếm: “Beads” đang ở 27 trên mục tiêu 33, bên dưới là nút −1 và Reset"
+          }
+        },
+        {
+          "src": "apps/screens/counter-2.png",
+          "alt": {
+            "en": "Counter: goal of 100 reached, shown in green with a tick; Reset asks “Sure?”",
+            "zh": "计数器：已达成目标 100，数字变绿并显示对勾；清零按钮询问 “Sure?”",
+            "vi": "Bộ đếm: đã đạt mục tiêu 100, số chuyển xanh kèm dấu tích; nút Reset hỏi “Sure?”"
+          }
+        },
+        {
+          "src": "apps/screens/counter-3.png",
+          "alt": {
+            "en": "Counter: the list of four counters with their counts, Rename and Done",
+            "zh": "计数器：四个计数器及其数值的列表，以及重命名和完成按钮",
+            "vi": "Bộ đếm: danh sách bốn bộ đếm kèm số đếm, nút Rename và Done"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk.trinh.miband.random",
+      "name": "Random",
+      "description": {
+        "en": "Random number in a range you set, 0 to 9999 (1–100 by default), dice (1 or 2, with the sum) and coin flip, with a short roll animation and a buzz. No repeats mode draws each number once, for raffles or taking turns. Settings kept on the band.",
+        "zh": "自定范围内的随机数（0 到 9999，默认 1–100）、骰子（1 或 2 个，显示总和）和抛硬币，带简短的滚动动画和振动。“不重复”模式让每个数字只抽一次，适合抽奖或排顺序。设置保存在手环上。",
+        "vi": "Số ngẫu nhiên trong khoảng tự chọn từ 0 đến 9999 (mặc định 1–100), xúc xắc (1 hoặc 2 viên, có tổng) và tung đồng xu, kèm hiệu ứng quay ngắn và rung. Chế độ No repeats bốc mỗi số đúng một lần, dùng cho bốc thăm hoặc chia lượt. Cài đặt lưu trên band."
+      },
+      "file": "apps/random.rpk",
+      "icon": "apps/random.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/random",
+      "screenshots": [
+        {
+          "src": "apps/screens/random-1.png",
+          "alt": {
+            "en": "Random: 42 rolled in the range 1–100, with − / + buttons for min and max and the Roll button",
+            "zh": "Random：在 1–100 范围内摇出 42，下方是最小值和最大值的 − / + 按钮以及 Roll 按钮",
+            "vi": "Random: ra số 42 trong khoảng 1–100, bên dưới là nút − / + cho min và max và nút Roll"
+          }
+        },
+        {
+          "src": "apps/screens/random-2.png",
+          "alt": {
+            "en": "Random with No repeats on: 23 drawn from 1–30, 12 of 30 left, and a Reset button",
+            "zh": "开启“不重复”的 Random：从 1–30 中抽出 23，还剩 30 个中的 12 个，旁边有 Reset 按钮",
+            "vi": "Random bật No repeats: bốc được 23 trong 1–30, còn 12 trên 30 số, kèm nút Reset"
+          }
+        },
+        {
+          "src": "apps/screens/random-3.png",
+          "alt": {
+            "en": "Random dice mode: two dice showing 3 and 5, total 8",
+            "zh": "Random 骰子模式：两个骰子分别为 3 和 5，总和 8",
+            "vi": "Random chế độ xúc xắc: hai viên ra 3 và 5, tổng 8"
           }
         }
       ]

@@ -1,0 +1,31 @@
+<!-- ux: demo-apps/metronome/src/pages/index/index.ux -->
+<!-- State: running at 96 BPM in 4/4, beat 1 (the accent) just fired: first dot and the tempo box lit orange. -->
+<div class="page">
+  <div class="top">
+    <div class="chip">
+      <text class="chip-label">TIME</text>
+      <text class="chip-value">4/4</text>
+    </div>
+    <div class="chip">
+      <text class="chip-label">BEAT 1</text>
+      <text class="chip-value">Double</text>
+    </div>
+  </div>
+  <div class="dots">
+    <div class="dot dot-accent"></div>
+    <div class="dot "></div>
+    <div class="dot "></div>
+    <div class="dot "></div>
+  </div>
+  <div class="tempo flash-accent">
+    <text class="bpm">96</text>
+    <text class="unit">BPM · Andante</text>
+  </div>
+  <div class="steps">
+    <div class="step"><text class="step-label">−</text></div>
+    <div class="step"><text class="step-label">+</text></div>
+  </div>
+  <text class="hint">Hold − / + for steps of 5</text>
+  <div class="tap"><text class="tap-label">Tap tempo</text></div>
+  <div class="go stop"><text class="go-label stop-label">Stop</text></div>
+</div>

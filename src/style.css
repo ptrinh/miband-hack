@@ -191,6 +191,17 @@ ul.catalog .name small { white-space: normal; }
 #h-summary .name small { white-space: normal; }
 .card h3 { font-size: 13px; color: var(--muted); margin: 16px 0 6px; }
 button.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
+
+.cl-list { padding: 12px 0; border-top: 1px solid var(--line); }
+.cl-list:first-child { border-top: 0; padding-top: 0; }
+.cl-row { display: flex; gap: 4px; align-items: center; }
+.cl-row input { flex: 1; min-width: 0; font-family: var(--sans); }
+.cl-head input { font-weight: 600; }
+.cl-items { list-style: none; margin: 8px 0 0; padding: 0 0 0 16px; display: grid; gap: 6px; }
+.cl-items input { padding: 7px 10px; }
+button.cl-icon { width: 32px; padding: 5px 0; flex: none; }
+.cl-foot { margin: 8px 0 0 16px; gap: 10px; }
+.cl-foot .progress-label { margin: 0; }
 /* Flashcards deck editor (src/decks/ui.ts) */
 .deck-bar { margin-top: 10px; gap: 8px; }
 .deck-bar select { flex: 1; min-width: 0; }

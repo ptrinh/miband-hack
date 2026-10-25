@@ -1,0 +1,5 @@
+node_modules/
+build/
+dist/
+# copy of ../../src/rpk/demo-key (made by npm run presign); gitignored like the other demos
+sign/

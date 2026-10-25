@@ -1,0 +1,460 @@
+<template>
+  <div class="page">
+    <div class="top">
+      <div class="chip" onclick="cycleSignature">
+        <text class="chip-label">TIME</text>
+        <text class="chip-value">{{sig}}</text>
+      </div>
+      <div class="chip" onclick="cycleAccent">
+        <text class="chip-label">BEAT 1</text>
+        <text class="chip-value">{{accent === 'long' ? 'Long' : 'Double'}}</text>
+      </div>
+    </div>
+    <div class="dots">
+      <div class="dot {{d.cls}}" for="{{d in dots}}"></div>
+    </div>
+    <div class="tempo {{flash}}">
+      <text class="bpm">{{bpm}}</text>
+      <text class="unit">BPM · {{name}}</text>
+    </div>
+    <div class="steps">
+      <div class="step" ontouchstart="minusDown" ontouchend="stepUp" ontouchcancel="stepCancel">
+        <text class="step-label">−</text>
+      </div>
+      <div class="step" ontouchstart="plusDown" ontouchend="stepUp" ontouchcancel="stepCancel">
+        <text class="step-label">+</text>
+      </div>
+    </div>
+    <text class="hint">Hold − / + for steps of 5</text>
+    <div class="tap" ontouchstart="tapTempo">
+      <text class="tap-label">{{tapLabel}}</text>
+    </div>
+    <div class="go {{running ? 'stop' : ''}}" onclick="toggle">
+      <text class="go-label {{running ? 'stop-label' : ''}}">{{running ? 'Stop' : 'Start'}}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+import vibrator from '@system.vibrator'
+import brightness from '@system.brightness'
+import storage from '@system.storage'
+import {
+  DEFAULT_BPM, DEFAULT_SIGNATURE, DEFAULT_ACCENT, clampBpm, stepBpm, interval, signature, nextSignature, nextAccent,
+  tempoName, createTapper, tap, createClock, advance, retempo, setBeats, pulses, parseSettings, serializeSettings
+} from '../../common/metronome.js'
+
+var STORAGE_KEY = 'metronome'
+var HOLD = 450 // ms before a held − / + starts repeating by 5
+var REPEAT = 220 // ms between repeats while held
+var FLASH = 120 // ms the tempo box stays lit after a beat
+var SAVE_DELAY = 800 // ms of quiet before settings are written
+
+function buzz(mode) {
+  try {
+    vibrator.vibrate({ mode: mode })
+  } catch (e) {}
+}
+
+function keepScreenOn(on) {
+  try {
+    brightness.setKeepScreenOn({ keepScreenOn: on })
+  } catch (e) {}
+}
+
+function makeDots(beats) {
+  var dots = []
+  for (var i = 0; i < beats; i++) dots.push({ cls: dotClass(i, false) })
+  return dots
+}
+
+function dotClass(i, on) {
+  if (i === 0) return on ? 'dot-accent' : 'dot-first'
+  return on ? 'dot-on' : ''
+}
+
+export default {
+  private: {
+    bpm: DEFAULT_BPM,
+    name: tempoName(DEFAULT_BPM),
+    sig: DEFAULT_SIGNATURE,
+    accent: DEFAULT_ACCENT,
+    dots: makeDots(4),
+    flash: '',
+    running: false,
+    tapLabel: 'Tap tempo'
+  },
+
+  onInit() {
+    var self = this
+    // Non-reactive bookkeeping.
+    this.clock = null
+    this.timer = null
+    this.pulseTimer = null
+    this.flashTimer = null
+    this.saveTimer = null
+    this.holdTimer = null
+    this.held = false // the − / + press already repeated, so its release adds nothing
+    this.holdDir = 0
+    this.lit = -1 // index of the lit dot
+    this.tapper = createTapper()
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        var s = parseSettings(text)
+        self.setBpm(s.bpm)
+        self.accent = s.accent
+        if (s.sig !== self.sig) {
+          self.sig = s.sig
+          self.dots = makeDots(signature(s.sig).beats)
+        }
+      }
+    })
+  },
+
+  onHide() {
+    // The platform forbids vibration from the background and JS timers are not reliable there: stop.
+    this.stop()
+    this.stopHold()
+    this.saveNow()
+  },
+
+  onDestroy() {
+    this.stop()
+    this.stopHold()
+    this.saveNow()
+  },
+
+  // ---- settings ----
+
+  setBpm(n) {
+    var bpm = clampBpm(n)
+    if (bpm === this.bpm) return
+    this.bpm = bpm
+    this.name = tempoName(bpm)
+    if (this.running && this.clock) this.schedule(retempo(this.clock, bpm, Date.now()))
+    this.save()
+  },
+
+  cycleSignature() {
+    this.sig = nextSignature(this.sig)
+    var beats = signature(this.sig).beats
+    this.lit = -1
+    this.dots = makeDots(beats)
+    if (this.clock) setBeats(this.clock, beats)
+    this.save()
+  },
+
+  cycleAccent() {
+    this.accent = nextAccent(this.accent)
+    this.save()
+  },
+
+  save() {
+    var self = this
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = setTimeout(function () { self.saveNow() }, SAVE_DELAY)
+  },
+
+  saveNow() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
+    storage.set({ key: STORAGE_KEY, value: serializeSettings({ bpm: this.bpm, sig: this.sig, accent: this.accent }) })
+  },
+
+  // ---- − / + : tap = ±1, hold = ±5 repeating ----
+
+  minusDown() {
+    this.startHold(-1)
+  },
+
+  plusDown() {
+    this.startHold(1)
+  },
+
+  startHold(dir) {
+    var self = this
+    this.stopHold()
+    this.holdDir = dir
+    this.held = false
+    this.holdTimer = setTimeout(function repeat() {
+      self.held = true
+      self.setBpm(stepBpm(self.bpm, dir * 5))
+      self.holdTimer = setTimeout(repeat, REPEAT)
+    }, HOLD)
+  },
+
+  stepUp() {
+    var dir = this.holdDir
+    var held = this.held
+    this.stopHold()
+    if (dir && !held) this.setBpm(stepBpm(this.bpm, dir))
+  },
+
+  stepCancel() {
+    this.stopHold()
+  },
+
+  stopHold() {
+    if (this.holdTimer) {
+      clearTimeout(this.holdTimer)
+      this.holdTimer = null
+    }
+    this.holdDir = 0
+    this.held = false
+  },
+
+  // ---- tap tempo (on touch start: lower and steadier latency than click) ----
+
+  tapTempo() {
+    var bpm = tap(this.tapper, Date.now())
+    if (bpm) {
+      this.setBpm(bpm)
+      this.tapLabel = 'Tap · ' + bpm
+    } else {
+      this.tapLabel = 'Tap again'
+    }
+  },
+
+  // ---- run ----
+
+  toggle() {
+    if (this.running) this.stop()
+    else this.start()
+  },
+
+  start() {
+    this.running = true
+    this.tapLabel = 'Tap tempo'
+    keepScreenOn(true)
+    this.clock = createClock(this.bpm, signature(this.sig).beats, Date.now())
+    this.tick()
+  },
+
+  stop() {
+    if (this.timer) clearTimeout(this.timer)
+    if (this.pulseTimer) clearTimeout(this.pulseTimer)
+    if (this.flashTimer) clearTimeout(this.flashTimer)
+    this.timer = this.pulseTimer = this.flashTimer = null
+    this.clock = null
+    if (this.lit >= 0 && this.dots[this.lit]) this.dots[this.lit].cls = dotClass(this.lit, false)
+    this.lit = -1
+    this.flash = ''
+    if (this.running) keepScreenOn(false)
+    this.running = false
+  },
+
+  schedule(delay) {
+    var self = this
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = setTimeout(function () {
+      self.timer = null
+      self.tick()
+    }, delay)
+  },
+
+  tick() {
+    if (!this.running || !this.clock) return
+    var r = advance(this.clock, Date.now())
+    if (r.fire) this.beat(r.index, r.accent)
+    this.schedule(r.delay)
+  },
+
+  beat(index, accent) {
+    var self = this
+    // Vibrate first: it is the part that has to be on time.
+    var p = pulses(accent, this.accent, interval(this.bpm))
+    buzz(p[0].mode)
+    if (this.pulseTimer) clearTimeout(this.pulseTimer)
+    this.pulseTimer = null
+    if (p.length > 1) {
+      this.pulseTimer = setTimeout(function () {
+        self.pulseTimer = null
+        if (self.running) buzz(p[1].mode)
+      }, p[1].at)
+    }
+    // Visual: move the lit dot, flash the tempo box.
+    if (this.lit >= 0 && this.dots[this.lit]) this.dots[this.lit].cls = dotClass(this.lit, false)
+    if (this.dots[index]) this.dots[index].cls = dotClass(index, true)
+    this.lit = index
+    this.flash = accent ? 'flash-accent' : 'flash'
+    if (this.flashTimer) clearTimeout(this.flashTimer)
+    this.flashTimer = setTimeout(function () {
+      self.flashTimer = null
+      self.flash = ''
+    }, Math.min(FLASH, interval(this.bpm) / 2))
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  background-color: #000000;
+}
+
+.top {
+  width: 164px;
+  height: 44px;
+  margin-top: 10px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.chip {
+  width: 80px;
+  height: 44px;
+  border-radius: 14px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #1c1c1e;
+}
+
+.chip-label {
+  font-size: 10px;
+  color: #8e8e93;
+}
+
+.chip-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.dots {
+  width: 164px;
+  height: 22px;
+  margin-top: 8px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  margin-right: 5px;
+  border-radius: 7px;
+  background-color: #3a3a3c;
+}
+
+.dot-first {
+  background-color: #5c3a10;
+}
+
+.dot-on {
+  background-color: #ffffff;
+}
+
+.dot-accent {
+  background-color: #ff9f0a;
+}
+
+.tempo {
+  width: 164px;
+  height: 104px;
+  margin-top: 8px;
+  border-radius: 20px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #1c1c1e;
+}
+
+.flash {
+  background-color: #48484a;
+}
+
+.flash-accent {
+  background-color: #a0600a;
+}
+
+.bpm {
+  font-size: 60px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.unit {
+  font-size: 13px;
+  color: #c7c7cc;
+}
+
+.steps {
+  width: 164px;
+  height: 60px;
+  margin-top: 10px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.step {
+  width: 78px;
+  height: 60px;
+  border-radius: 18px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.step-label {
+  font-size: 36px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.hint {
+  width: 164px;
+  height: 18px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8e8e93;
+  text-align: center;
+}
+
+.tap {
+  width: 164px;
+  height: 52px;
+  margin-top: 8px;
+  border-radius: 18px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.tap-label {
+  font-size: 18px;
+  color: #ffffff;
+}
+
+.go {
+  width: 164px;
+  height: 62px;
+  margin-top: 10px;
+  border-radius: 31px;
+  justify-content: center;
+  align-items: center;
+  background-color: #30d158;
+}
+
+.stop {
+  background-color: #ff453a;
+}
+
+.go-label {
+  font-size: 22px;
+  font-weight: bold;
+  color: #000000;
+}
+
+.stop-label {
+  color: #ffffff;
+}
+</style>

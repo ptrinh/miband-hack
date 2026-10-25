@@ -1,3 +1,4 @@
+import { bindImport, downloadJson, loadStored, saveStored } from '../custom-editor';
 import { t } from '../i18n';
 import {
   type Card, type Deck, type Problem, countCards, exportJson, isBlank, LIMITS, loadSaved, newDeckId,
@@ -67,22 +68,12 @@ function sampleDeck(): Deck {
 }
 
 function load(): Deck[] {
-  try {
-    const saved = loadSaved(localStorage.getItem(STORAGE));
-    if (saved) return saved;
-  } catch {
-    /* storage blocked */
-  }
-  return [sampleDeck()];
+  const stored = loadStored(STORAGE);
+  return (stored !== undefined && loadSaved(JSON.stringify(stored))) || [sampleDeck()];
 }
 
 function save(): void {
-  try {
-    localStorage.setItem(STORAGE, JSON.stringify(decks));
-    saveOk = true;
-  } catch {
-    saveOk = false;
-  }
+  saveOk = saveStored(STORAGE, decks);
   $('dk-saved').textContent = saveOk ? t('decksSaved') : t('decksSaveFailed');
 }
 
@@ -266,12 +257,7 @@ async function importFile(file: File): Promise<void> {
 }
 
 function exportAll(): void {
-  const blob = new Blob([exportJson(decks)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `miband-flashcards-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  downloadJson('miband-flashcards', JSON.parse(exportJson(decks)));
 }
 
 // ------------------------------------------------------------ public ---
@@ -280,19 +266,15 @@ function exportAll(): void {
 export function decksForInstall(): Deck[] {
   const p = validateDecks(decks);
   if (p.length) {
-    showDecksEditor(true);
+    showDecksEditor();
     throw new Error(`${t('decksProblems')} ${problemText(p[0])}`);
   }
   return decks;
 }
 
-export function decksEditorOpen(): boolean {
-  return !!root && !root.classList.contains('hidden');
-}
-
-export function showDecksEditor(open = !decksEditorOpen()): void {
-  root.classList.toggle('hidden', !open);
-  if (open) renderDecksEditor();
+function showDecksEditor(): void {
+  root.classList.remove('hidden');
+  renderDecksEditor();
 }
 
 export function mountDecksEditor(el: HTMLElement, d: DecksUiDeps): void {
@@ -348,12 +330,6 @@ export function mountDecksEditor(el: HTMLElement, d: DecksUiDeps): void {
   };
   $('dk-paste-append').onclick = () => paste(false);
   $('dk-paste-replace').onclick = () => paste(true);
-  $('dk-import').onclick = () => $<HTMLInputElement>('dk-file').click();
-  $<HTMLInputElement>('dk-file').onchange = (e) => {
-    const inputEl = e.target as HTMLInputElement;
-    const file = inputEl.files?.[0];
-    inputEl.value = '';
-    if (file) importFile(file).catch(deps.fail);
-  };
+  bindImport($('dk-import'), $<HTMLInputElement>('dk-file'), importFile, deps.fail);
   $('dk-export').onclick = () => exportAll();
 }

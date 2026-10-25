@@ -1,6 +1,5 @@
 import { bandFiles, type Deck } from '../decks/model';
-import { bumpVersionCode, getDemoSigner } from './notes';
-import { repackRpk, type RepackOptions } from './repack';
+import { buildCustomRpkFiles, type CustomRpkOptions } from './custom';
 import type { RpkSigner } from './sign';
 
 /**
@@ -9,13 +8,6 @@ import type { RpkSigner } from './sign';
  * common/notes.json. `template` is public/apps/flashcards.rpk. Signs with the public demo key unless
  * another signer is given. Throws if the decks do not pass validateDecks().
  */
-export async function buildFlashcardsRpk(
-  template: Uint8Array,
-  decks: Deck[],
-  signer?: RpkSigner,
-  options?: RepackOptions & { versionCode?: number },
-): Promise<Uint8Array> {
-  const replace = bandFiles(decks);
-  if (options?.versionCode !== undefined) Object.assign(replace, bumpVersionCode(template, options.versionCode));
-  return repackRpk(template, replace, signer ?? (await getDemoSigner()), options);
+export async function buildFlashcardsRpk(template: Uint8Array, decks: Deck[], signer?: RpkSigner, options?: CustomRpkOptions): Promise<Uint8Array> {
+  return buildCustomRpkFiles(template, bandFiles(decks), signer, options);
 }

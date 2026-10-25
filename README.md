@@ -44,8 +44,12 @@ MiBand Hack fills that gap: open a web page and install.
 | Calculator | Calculator + − × ÷, decimals | `demo-apps/calculator` |
 | Drawing | Freehand drawing: 5 colours, 3 brush sizes, eraser, undo, autosave | `demo-apps/drawing` |
 | Notes | Shows the user's notes (read-only). Notes are written in the webapp; the browser **repacks and re-signs the `.rpk`** and installs it | `demo-apps/notes` + `src/rpk/` |
+| Checklist | Shopping, to-do and packing lists written in the webapp (repacked and re-signed in the browser like Notes); tap items on the band to tick them off, ticks saved on the band | `demo-apps/checklist` + `src/rpk/` |
 | Snake | Snake game: swipe or tap the left/right half to turn, speeds up, saves the high score | `demo-apps/snake` |
-| SAT Flashcards | Learn 372 SAT words: flip cards, Know it / Again, spaced repetition (Leitner boxes), progress saved on the band | `demo-apps/sat-flashcards` |
+| SAT Flashcards | Learn 1,355 SAT words: flip cards (Know it / Again) or a multiple-choice quiz, spaced repetition (Leitner boxes), progress saved on the band | `demo-apps/sat-flashcards` |
+| Metronome | Silent metronome: the beat as a vibration on the wrist plus a flash, 30–250 BPM, tap tempo, accent on beat 1 in 2/4, 3/4, 4/4, 6/8 | `demo-apps/metronome` |
+| Counter | Tally counter: tap anywhere to count (short buzz), −1, reset with a confirming second tap, goal presets with a long buzz and a tick, four named counters saved on the band | `demo-apps/counter` |
+| Random | Random number (min/max with − / +), dice (1 or 2 with the sum), coin flip; No repeats mode for raffles; buzz on each result, settings saved on the band | `demo-apps/random` |
 
 Outside the catalog: **Phone Remote** (`demo-apps/phone-remote`) — press on the band to take photos, change slides, play/pause on the phone. It needs the companion Android app (same package, same signature) and Mi Fitness to relay messages over `system.interconnect`; not yet verified on Mi Band 9/10, so it is not in the catalog yet.
 
