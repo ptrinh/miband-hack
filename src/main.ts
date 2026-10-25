@@ -84,7 +84,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <li data-i18n-html="iosStep3"></li>
         </ol>
         <label for="mf-files" data-i18n="iosPick"></label>
-        <input type="file" id="mf-files" accept=".zip,.sqlite,.sqlite-wal,application/zip" multiple />
+        <!-- No accept filter: iOS greys out manifest.sqlite-wal (no UTI for that extension). The reader checks the content. -->
+        <input type="file" id="mf-files" multiple />
         <ul class="list hidden" id="mf-keys" style="margin-top:10px"></ul>
         <p class="hint" data-i18n="iosPrivacy"></p>
         <h4 data-i18n="androidTitle"></h4>
