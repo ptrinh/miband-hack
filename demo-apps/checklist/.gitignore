@@ -1,0 +1,6 @@
+node_modules/
+build/
+dist/
+# copied from ../../src/rpk/demo-key by `npm run presign` (that key is intentionally public;
+# never put a real private key here)
+sign/

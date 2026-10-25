@@ -49,7 +49,9 @@ src/
   protocol/
     stream-link.ts     SPP V1/V2: version probe, sliding window, ack/nack, retransmit
     ble-v1-link.ts     Mi Band 8 chunk protocol
-  rpk/                 Repack + re-sign .rpk in the browser (used for Notes)
+  rpk/                 Repack + re-sign .rpk in the browser (Notes, Checklist: custom.ts is the shared part)
+  checklist/ui.ts      Checklist editor (lists saved in localStorage only)
+  custom-editor.ts     localStorage / JSON export / import helpers shared by the Notes and Checklist editors
   i18n.ts              EN / 中文 / VI dictionaries and the t() function
 worker/
   index.ts             Serves dist/ + API /api/xiaomi/qr, /api/xiaomi/poll

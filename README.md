@@ -44,6 +44,7 @@ MiBand Hack fills that gap: open a web page and install.
 | Calculator | Calculator + − × ÷, decimals | `demo-apps/calculator` |
 | Drawing | Freehand drawing: 5 colours, 3 brush sizes, eraser, undo, autosave | `demo-apps/drawing` |
 | Notes | Shows the user's notes (read-only). Notes are written in the webapp; the browser **repacks and re-signs the `.rpk`** and installs it | `demo-apps/notes` + `src/rpk/` |
+| Checklist | Shopping, to-do and packing lists written in the webapp (repacked and re-signed in the browser like Notes); tap items on the band to tick them off, ticks saved on the band | `demo-apps/checklist` + `src/rpk/` |
 | Snake | Snake game: swipe or tap the left/right half to turn, speeds up, saves the high score | `demo-apps/snake` |
 | SAT Flashcards | Learn 372 SAT words: flip cards, Know it / Again, spaced repetition (Leitner boxes), progress saved on the band | `demo-apps/sat-flashcards` |
 | Metronome | Silent metronome: the beat as a vibration on the wrist plus a flash, 30–250 BPM, tap tempo, accent on beat 1 in 2/4, 3/4, 4/4, 6/8 | `demo-apps/metronome` |

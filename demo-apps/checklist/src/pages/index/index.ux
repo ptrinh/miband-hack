@@ -1,0 +1,166 @@
+<template>
+  <div class="page">
+    <text class="header">Checklist</text>
+    <text if="{{state === 'loading'}}" class="info">Loading…</text>
+    <text elif="{{state === 'error'}}" class="info">Cannot read lists</text>
+    <text elif="{{lists.length === 0}}" class="info">No lists</text>
+    <list else class="list">
+      <list-item type="list" class="item" for="{{(i, l) in lists}}" onclick="open(i)">
+        <div class="item-top">
+          <text class="title">{{l.title}}</text>
+          <text class="count {{l.complete ? 'count-done' : ''}}">{{l.done}}/{{l.total}}</text>
+        </div>
+        <div class="bar">
+          <div class="fill {{l.complete ? 'fill-done' : ''}}" style="width: {{l.fill}}px;"></div>
+        </div>
+      </list-item>
+      <list-item type="end" class="end-item">
+        <text class="end"> </text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import { loadLists, loadTicks, saveTicks } from '../../common/data.js'
+import { countDone, fillWidth, pruneTicks, serializeTicks } from '../../common/model.js'
+
+var BAR_WIDTH = 148 // design px, matches .bar
+
+export default {
+  private: {
+    state: 'loading',
+    lists: []
+  },
+
+  onInit() {
+    var self = this
+    this.data = null
+    this.ticks = null
+    loadLists(function (err, lists) {
+      self.data = lists
+      if (err) self.state = 'error'
+      self.refresh()
+    })
+  },
+
+  // Also runs when coming back from a list, so the progress shows the new ticks.
+  onShow() {
+    var self = this
+    loadTicks(function (ticks) {
+      self.ticks = ticks
+      self.refresh()
+    })
+  },
+
+  refresh() {
+    if (!this.data || !this.ticks || this.state === 'error') return
+    // Forget ticks of items removed in the web app, so storage does not grow forever.
+    var pruned = pruneTicks(this.ticks, this.data)
+    if (serializeTicks(pruned) !== serializeTicks(this.ticks)) saveTicks(pruned)
+    this.ticks = pruned
+    var out = []
+    for (var i = 0; i < this.data.length; i++) {
+      var l = this.data[i]
+      var done = countDone(l, pruned)
+      var total = l.items.length
+      out.push({ id: l.id, title: l.title, done: done, total: total, complete: total > 0 && done === total, fill: fillWidth(done, total, BAR_WIDTH) })
+    }
+    this.lists = out
+    this.state = 'ready'
+  },
+
+  open(i) {
+    var l = this.lists[i]
+    if (l) router.push({ uri: 'pages/list', params: { id: l.id } })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 24px 8px 0 12px;
+}
+
+.header {
+  height: 40px;
+  font-size: 24px;
+  color: #30d158;
+  text-align: center;
+}
+
+.info {
+  margin-top: 60px;
+  font-size: 22px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.list {
+  flex: 1;
+  flex-direction: column;
+}
+
+.item {
+  min-height: 72px;
+  margin-bottom: 8px;
+  padding: 10px 12px 12px 12px;
+  border-radius: 16px;
+  background-color: #1f1f22;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.item-top {
+  align-items: center;
+}
+
+.title {
+  flex: 1;
+  font-size: 22px;
+  color: #ffffff;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.count {
+  margin-left: 6px;
+  font-size: 18px;
+  color: #8a8a8e;
+}
+
+.count-done {
+  color: #30d158;
+}
+
+.bar {
+  width: 148px;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background-color: #3a3a3c;
+}
+
+.fill {
+  height: 6px;
+  border-radius: 3px;
+  background-color: #0a84ff;
+}
+
+.fill-done {
+  background-color: #30d158;
+}
+
+.end-item {
+  height: 40px;
+}
+
+.end {
+  font-size: 12px;
+}
+</style>

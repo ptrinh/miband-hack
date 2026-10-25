@@ -88,6 +88,49 @@
       ]
     },
     {
+      "id": "uk.trinh.miband.checklist",
+      "name": "Checklist",
+      "description": {
+        "en": "Shopping, to-do and packing lists on your wrist: write them here, then tap items on the band to tick them off. Progress per list, Uncheck all, ticks kept when you update the lists.",
+        "zh": "把购物、待办和行李清单戴在手腕上：在这里编写，然后在手环上点击条目来勾选。每个清单显示进度，可一键全部取消，更新清单时保留已勾选的条目。",
+        "vi": "Danh sách đi chợ, việc cần làm, đồ mang theo ngay trên cổ tay: soạn tại đây, rồi chạm vào từng mục trên band để đánh dấu. Có tiến độ từng danh sách, nút bỏ chọn tất cả, giữ dấu tích khi cập nhật danh sách."
+      },
+      "file": "apps/checklist.rpk",
+      "icon": "apps/checklist.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/checklist",
+      "customize": "checklist",
+      "screenshots": [
+        {
+          "src": "apps/screens/checklist-1.png",
+          "alt": {
+            "en": "Checklist: three lists with progress bars, Shopping 2/6, To do 3/3 complete, Packing 1/4",
+            "zh": "清单：三个带进度条的清单，购物 2/6，待办 3/3 已完成，行李 1/4",
+            "vi": "Checklist: ba danh sách có thanh tiến độ, Shopping 2/6, To do 3/3 đã xong, Packing 1/4"
+          }
+        },
+        {
+          "src": "apps/screens/checklist-2.png",
+          "alt": {
+            "en": "Checklist: the Shopping list opened, two items ticked off and struck through, a Back button and 2/6",
+            "zh": "清单：打开的购物清单，两个条目已勾选并划掉，带返回按钮和 2/6",
+            "vi": "Checklist: mở danh sách Shopping, hai mục đã tích và gạch ngang, có nút Back và 2/6"
+          }
+        },
+        {
+          "src": "apps/screens/checklist-3.png",
+          "alt": {
+            "en": "Checklist: end of a list with a long item wrapped over four lines and the red “Tap again” button",
+            "zh": "清单：清单末尾，一条较长的条目折成四行，下方是红色的“Tap again”（再点一次取消全部勾选）按钮",
+            "vi": "Checklist: cuối danh sách, một mục dài xuống bốn dòng và nút đỏ “Tap again”"
+          }
+        }
+      ]
+    },
+    {
       "id": "uk.trinh.miband.snake",
       "name": "Snake",
       "description": {
