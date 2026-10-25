@@ -1,0 +1,28 @@
+<!-- ux: demo-apps/snake/src/pages/index/index.ux -->
+<!-- State: mid-game, score 7 (length 10), best 23, heading right towards the food. -->
+<div id="page" class="page">
+  <div class="bar">
+    <text class="score">7</text>
+    <text class="best">Best 23</text>
+  </div>
+  <div class="field" id="field"></div>
+</div>
+<script type="module">
+  import { COLS, ROWS } from '/demo-apps/snake/src/common/snake.js';
+  const CELL = 12; // as in index.ux: px(c) = c * CELL + 1
+  // Head first, as in the engine's game.body.
+  const body = [[9, 11], [8, 11], [7, 11], [6, 11], [6, 12], [6, 13], [6, 14], [6, 15], [7, 15], [8, 15]];
+  const food = [12, 7];
+  if (COLS !== 15 || ROWS !== 32) console.warn('field size changed: update snake-1.html');
+  const field = document.getElementById('field');
+  const cell = (cls, [x, y]) => {
+    const d = document.createElement('div');
+    d.className = cls;
+    d.style.left = `${x * CELL + 1}px`;
+    d.style.top = `${y * CELL + 1}px`;
+    field.appendChild(d);
+  };
+  body.forEach((c) => cell('seg', c));
+  cell('food', food);
+  cell('head', body[0]);
+</script>

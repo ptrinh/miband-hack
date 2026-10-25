@@ -107,6 +107,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <section class="card span-2" id="card-catalog">
       <h2><span class="step">3</span><span data-i18n="catalogTitle"></span></h2>
       <ul class="list catalog" id="catalog"><li class="empty" data-i18n="catalogLoading"></li></ul>
+      <p class="hint" data-i18n="catalogTap"></p>
       <div id="notes-editor" class="notes-editor hidden">
         <p class="hint" data-i18n="notesHint"></p>
         <div id="notes-list"></div>
@@ -162,6 +163,22 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <p data-i18n-html="footer2"></p>
   </footer>
 </div>
+<dialog class="app-dialog" id="app-dialog" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-desc">
+  <div class="app-dialog-body">
+    <div class="app-dialog-head">
+      <img class="catalog-icon" id="app-dialog-icon" alt="" />
+      <h3><span id="app-dialog-title"></span><small id="app-dialog-devices"></small></h3>
+      <button class="small ghost" id="app-dialog-close" data-i18n="close"></button>
+    </div>
+    <p id="app-dialog-desc"></p>
+    <div class="shots" id="app-dialog-shots" role="region" tabindex="0"></div>
+    <p class="hint" id="app-dialog-caption"></p>
+    <div class="row app-dialog-actions">
+      <span id="app-dialog-action"></span>
+      <span class="hint" id="app-dialog-hint" data-i18n-html="catalogHint" style="margin:0"></span>
+    </div>
+  </div>
+</dialog>
 <div class="toast hidden" id="toast"></div>
 `;
 
@@ -317,6 +334,7 @@ function render(): void {
   renderApps(connected ? device!.apps : null);
   renderFaces(connected ? device!.faces : null);
   renderCatalog();
+  renderAppDialogAction();
 }
 
 function emptyItem(text: string): HTMLLIElement {
@@ -487,7 +505,9 @@ drop.ondrop = (e) => {
 
 // ---------------------------------------------------------------- catalog ---
 
-interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes' }
+/** A preview image rendered by tools/screenshots (not a photo of a real band); alt may be per language. */
+interface CatalogShot { src: string; alt?: string | Record<string, string> }
+interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes'; screenshots?: CatalogShot[] }
 
 let catalog: CatalogApp[] = [];
 let catalogBusy = false;
@@ -516,11 +536,25 @@ function renderCatalog(): void {
     icon.alt = '';
     if (app.icon) icon.src = app.icon;
     icon.onerror = () => icon.replaceWith(Object.assign(document.createElement('div'), { className: 'catalog-icon', textContent: 'RPK' }));
-    const name = nameCell(app.name, `${pick(app.description)}${app.devices?.length ? ` · ${app.devices.join(', ')}` : ''}`);
+    // Icon + name open the details dialog; spans, not divs, because they sit inside a <button>.
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = app.name;
+    const sub = document.createElement('small');
+    sub.textContent = `${pick(app.description)}${app.devices?.length ? ` · ${app.devices.join(', ')}` : ''}`;
+    name.appendChild(sub);
+    const details = document.createElement('button');
+    details.type = 'button';
+    details.className = 'catalog-open';
+    details.dataset.appId = app.id;
+    details.setAttribute('aria-haspopup', 'dialog');
+    details.setAttribute('aria-label', t('appDetails', { name: app.name }));
+    details.onclick = () => openAppDialog(app);
+    details.append(icon, name);
     const installed = installedIds.has(app.id);
     const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy);
     if (!installed) btn.classList.add('primary');
-    li.append(icon, name);
+    li.append(details);
     if (app.customize === 'notes') {
       const open = !$('notes-editor').classList.contains('hidden');
       const edit = document.createElement('button');
@@ -538,6 +572,68 @@ function renderCatalog(): void {
   }
   $('catalog-hint').classList.toggle('hidden', connected);
 }
+
+// ---------------------------------------------------- app details dialog ---
+
+let dialogApp: CatalogApp | null = null;
+const appDialog = $<HTMLDialogElement>('app-dialog');
+
+function openAppDialog(app: CatalogApp): void {
+  dialogApp = app;
+  renderAppDialog();
+  if (!appDialog.open) appDialog.showModal(); // native modal: focus trap, Escape closes
+}
+
+function renderAppDialog(): void {
+  const app = dialogApp;
+  if (!app) return;
+  $('app-dialog-title').textContent = app.name;
+  $('app-dialog-devices').textContent = app.devices?.join(' · ') ?? '';
+  const icon = $<HTMLImageElement>('app-dialog-icon');
+  icon.classList.toggle('hidden', !app.icon);
+  if (app.icon) icon.src = app.icon;
+  $('app-dialog-desc').textContent = pick(app.description);
+  const shots = app.screenshots ?? [];
+  const box = $('app-dialog-shots');
+  box.setAttribute('aria-label', t('shotsLabel', { name: app.name }));
+  box.replaceChildren(
+    ...shots.map((shot, i) => {
+      const img = document.createElement('img');
+      img.src = shot.src;
+      img.alt = pick(shot.alt) || `${app.name} ${i + 1}`;
+      img.width = 210; // rendered at 2x: 420 x 978
+      img.height = 489;
+      img.decoding = 'async';
+      return img;
+    }),
+  );
+  box.classList.toggle('hidden', shots.length === 0);
+  $('app-dialog-caption').textContent = shots.length ? t('shotsCaption') : t('shotsNone');
+  renderAppDialogAction();
+}
+
+function renderAppDialogAction(): void {
+  const app = dialogApp;
+  if (!app) return;
+  const connected = !!device?.connected;
+  const installed = device?.apps.some((a) => a.id === app.id) ?? false;
+  const btn = button(installed ? t('reinstall') : t('add'), async () => {
+    appDialog.close();
+    await installFromCatalog(app);
+  }, !connected || catalogBusy);
+  if (!installed) btn.classList.add('primary');
+  $('app-dialog-action').replaceChildren(btn);
+  $('app-dialog-hint').classList.toggle('hidden', connected);
+}
+
+$('app-dialog-close').onclick = () => appDialog.close();
+// A click on the backdrop lands on the <dialog> itself (its content sits in .app-dialog-body).
+appDialog.onclick = (e) => e.target === appDialog && appDialog.close();
+appDialog.onclose = () => {
+  const id = dialogApp?.id;
+  dialogApp = null;
+  if (id) document.querySelector<HTMLButtonElement>(`.catalog-open[data-app-id="${CSS.escape(id)}"]`)?.focus();
+};
 
 async function installFromCatalog(app: CatalogApp): Promise<void> {
   if (!device?.connected) throw new Error(t('notConnected'));
@@ -829,6 +925,7 @@ function localize(): void {
   renderLangSwitch();
   renderSupport();
   render();
+  renderAppDialog();
 }
 
 localize();
