@@ -39,7 +39,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <section class="card" id="card-key">
       <h2><span class="step">1</span><span data-i18n="keyTitle"></span></h2>
       <label for="authkey" data-i18n="keyLabel"></label>
-      <input id="authkey" type="password" placeholder="0x0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
+      <input id="authkey" type="text" placeholder="0x0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
       <label for="deviceid" style="font-weight:400;color:var(--muted)" data-i18n="deviceIdLabel"></label>
       <input id="deviceid" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="deviceIdPh" />
       <label class="check"><input type="checkbox" id="remember" /> <span data-i18n="remember"></span></label>
