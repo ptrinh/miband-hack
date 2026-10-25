@@ -101,8 +101,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <section class="card" id="card-connect">
       <h2><span class="step">2</span><span data-i18n="connTitle"></span></h2>
       <div class="connect-opts">
-        <button class="connect-opt primary" id="btn-spp"><span data-i18n="sppBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="sppSub" style="color:inherit;opacity:.85"></span></button>
-        <button class="connect-opt" id="btn-ble"><span data-i18n="bleBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="bleSub"></span></button>
+        <button class="connect-opt primary" id="btn-ble"><span data-i18n="bleBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="bleSub" style="color:inherit;opacity:.85"></span></button>
+        <button class="connect-opt" id="btn-spp"><span data-i18n="sppBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="sppSub"></span></button>
         <button class="ghost hidden" id="btn-disconnect" data-i18n="disconnect"></button>
       </div>
       <details>

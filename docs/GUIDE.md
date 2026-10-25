@@ -65,18 +65,13 @@ More background: the [Gadgetbridge guide](https://gadgetbridge.org/basics/pairin
 
 ## Step 2: Connect the band
 
-1. **Turn off Bluetooth on your phone**: the band can only talk to one device at a time.
-2. Press the button that matches your band:
+1. **Turn off Bluetooth on your phone / iPad** (in Settings, not just Control Center): the band talks to one device at a time.
+2. Press **Mi Band 8 / 9 / 10 / 9 Active** (Bluetooth Low Energy) and pick the band in the dialog → **Pair**. On a Mac, a Mi Band 10 only shows up here.
+3. **Look at the band:** on the first connection it asks to accept a pairing request (on a Mi Band 10 the text may show as `pair_request.setupwizard / accept_ble_request.system`). Press the **lower (blue) button**. Until you do, the page waits and then says the authentication timed out.
 
-| Your band | Press | Prepare first |
-|---|---|---|
-| Mi Band **9, 10, 9 Pro, 10 Pro** | **Mi Band 9 / 10 / 9 Pro / 10 Pro** | In your computer's Bluetooth settings, **pair with the band** first |
-| Mi Band **8**, **9 Active** | **Mi Band 8 / 9 Active…** | Nothing |
+The other button, **Bluetooth Classic (SPP)**, is only for a band that shows up as a serial port after pairing it in the computer's Bluetooth settings.
 
-3. The browser shows a dialog:
-   - Mi Band 9/10: pick the row that says **"Bluetooth SPP"** or the band's name → **Connect**.
-   - Mi Band 8: pick the band's name (e.g. *Xiaomi Smart Band 8 XXXX*) → **Pair**.
-4. You're done when you see the green dot **"Connected"** together with the model name and battery %.
+You're done when you see the green dot **"Connected"** together with the model name and battery %.
 
 ---
 

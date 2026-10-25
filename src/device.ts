@@ -32,7 +32,8 @@ const UPLOAD_START = 0;
 const UPLOAD_TYPE_WATCHFACE = 16;
 const UPLOAD_TYPE_RPK = 64;
 
-const AUTH_TIMEOUT_MS = 20_000;
+// Long enough to accept the pairing prompt the band shows on a first BLE connection.
+const AUTH_TIMEOUT_MS = 60_000;
 const REPLY_TIMEOUT_MS = 15_000;
 const INSTALL_CONFIRM_TIMEOUT_MS = 90_000;
 // Gadgetbridge gives up on a file after 5 s without a chunk; a little more slack for Web Serial.
@@ -99,6 +100,7 @@ export class XiaomiDevice {
     link.onActivity = (b) => this.handleActivity(b);
     link.onReadyForAuth = () => {
       this.onLog('→ starting authentication');
+      this.onLog(t('authAcceptOnBand'));
       void this.send(this.auth.buildNonceCommand());
     };
     link.onClose = () => {
