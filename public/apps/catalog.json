@@ -154,6 +154,48 @@
           }
         }
       ]
+    },
+    {
+      "id": "uk.trinh.miband.random",
+      "name": "Random",
+      "description": {
+        "en": "Random number in a range you set, 0 to 9999 (1–100 by default), dice (1 or 2, with the sum) and coin flip, with a short roll animation and a buzz. No repeats mode draws each number once, for raffles or taking turns. Settings kept on the band.",
+        "zh": "自定范围内的随机数（0 到 9999，默认 1–100）、骰子（1 或 2 个，显示总和）和抛硬币，带简短的滚动动画和振动。“不重复”模式让每个数字只抽一次，适合抽奖或排顺序。设置保存在手环上。",
+        "vi": "Số ngẫu nhiên trong khoảng tự chọn từ 0 đến 9999 (mặc định 1–100), xúc xắc (1 hoặc 2 viên, có tổng) và tung đồng xu, kèm hiệu ứng quay ngắn và rung. Chế độ No repeats bốc mỗi số đúng một lần, dùng cho bốc thăm hoặc chia lượt. Cài đặt lưu trên band."
+      },
+      "file": "apps/random.rpk",
+      "icon": "apps/random.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/random",
+      "screenshots": [
+        {
+          "src": "apps/screens/random-1.png",
+          "alt": {
+            "en": "Random: 42 rolled in the range 1–100, with − / + buttons for min and max and the Roll button",
+            "zh": "Random：在 1–100 范围内摇出 42，下方是最小值和最大值的 − / + 按钮以及 Roll 按钮",
+            "vi": "Random: ra số 42 trong khoảng 1–100, bên dưới là nút − / + cho min và max và nút Roll"
+          }
+        },
+        {
+          "src": "apps/screens/random-2.png",
+          "alt": {
+            "en": "Random with No repeats on: 23 drawn from 1–30, 12 of 30 left, and a Reset button",
+            "zh": "开启“不重复”的 Random：从 1–30 中抽出 23，还剩 30 个中的 12 个，旁边有 Reset 按钮",
+            "vi": "Random bật No repeats: bốc được 23 trong 1–30, còn 12 trên 30 số, kèm nút Reset"
+          }
+        },
+        {
+          "src": "apps/screens/random-3.png",
+          "alt": {
+            "en": "Random dice mode: two dice showing 3 and 5, total 8",
+            "zh": "Random 骰子模式：两个骰子分别为 3 和 5，总和 8",
+            "vi": "Random chế độ xúc xắc: hai viên ra 3 và 5, tổng 8"
+          }
+        }
+      ]
     }
   ]
 }

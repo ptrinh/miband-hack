@@ -1,0 +1,33 @@
+<!-- ux: demo-apps/random/src/pages/index/index.ux -->
+<!-- State: number mode, default range 1–100, just landed on 42. -->
+<div class="page">
+  <div class="tabs">
+    <div class="tab tab-on"><text class="tab-label">123</text></div>
+    <div class="tab"><text class="tab-label">Dice</text></div>
+    <div class="tab"><text class="tab-label">Coin</text></div>
+  </div>
+  <div class="stage">
+    <div class="stage-col">
+      <text class="big n3">42</text>
+      <text class="sub">1 – 100</text>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="controls-col">
+      <div class="row">
+        <div class="step"><text class="step-label">−</text></div>
+        <div class="value"><text class="value-name">MIN</text><text class="value-num">1</text></div>
+        <div class="step"><text class="step-label">+</text></div>
+      </div>
+      <div class="row">
+        <div class="step"><text class="step-label">−</text></div>
+        <div class="value"><text class="value-name">MAX</text><text class="value-num">100</text></div>
+        <div class="step"><text class="step-label">+</text></div>
+      </div>
+      <div class="row">
+        <div class="toggle"><div class="dot"></div><text class="toggle-label">No repeats</text></div>
+      </div>
+    </div>
+  </div>
+  <div class="go"><text class="go-label">Roll</text></div>
+</div>

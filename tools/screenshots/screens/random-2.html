@@ -1,0 +1,34 @@
+<!-- ux: demo-apps/random/src/pages/index/index.ux -->
+<!-- State: number mode with No repeats on, a raffle of tickets 1–30: 18 drawn, 23 just landed, 12 left. -->
+<div class="page">
+  <div class="tabs">
+    <div class="tab tab-on"><text class="tab-label">123</text></div>
+    <div class="tab"><text class="tab-label">Dice</text></div>
+    <div class="tab"><text class="tab-label">Coin</text></div>
+  </div>
+  <div class="stage">
+    <div class="stage-col">
+      <text class="big n3">23</text>
+      <text class="sub">12 of 30 left</text>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="controls-col">
+      <div class="row">
+        <div class="step"><text class="step-label">−</text></div>
+        <div class="value"><text class="value-name">MIN</text><text class="value-num">1</text></div>
+        <div class="step"><text class="step-label">+</text></div>
+      </div>
+      <div class="row">
+        <div class="step"><text class="step-label">−</text></div>
+        <div class="value"><text class="value-name">MAX</text><text class="value-num">30</text></div>
+        <div class="step"><text class="step-label">+</text></div>
+      </div>
+      <div class="row">
+        <div class="toggle toggle-on"><div class="dot dot-on"></div><text class="toggle-label">No repeats</text></div>
+        <div class="reset"><text class="reset-label">Reset</text></div>
+      </div>
+    </div>
+  </div>
+  <div class="go"><text class="go-label">Roll</text></div>
+</div>

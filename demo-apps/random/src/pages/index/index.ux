@@ -1,0 +1,700 @@
+<template>
+  <div class="page">
+    <div class="tabs">
+      <div class="tab {{mode === 'number' ? 'tab-on' : ''}}" onclick="chooseNumber">
+        <text class="tab-label">123</text>
+      </div>
+      <div class="tab {{mode === 'dice' ? 'tab-on' : ''}}" onclick="chooseDice">
+        <text class="tab-label">Dice</text>
+      </div>
+      <div class="tab {{mode === 'coin' ? 'tab-on' : ''}}" onclick="chooseCoin">
+        <text class="tab-label">Coin</text>
+      </div>
+    </div>
+
+    <div class="stage" onclick="roll">
+      <div if="{{mode === 'number'}}" class="stage-col">
+        <text class="big {{bigSize}} {{rolling ? 'spin' : ''}}">{{big}}</text>
+        <text class="sub">{{sub}}</text>
+      </div>
+      <div elif="{{mode === 'dice'}}" class="stage-col">
+        <div class="dice">
+          <div class="die {{dieSize}}" for="{{d in dieFaces}}">
+            <div class="pip {{dieSize}}-pip" for="{{p in d}}" style="left: {{p.l}}px; top: {{p.t}}px;"></div>
+          </div>
+        </div>
+        <text class="sub">{{sub}}</text>
+      </div>
+      <div else class="stage-col">
+        <div class="coin {{coinClass}}">
+          <text class="coin-face">{{coinFace}}</text>
+        </div>
+        <text class="sub">{{sub}}</text>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div if="{{mode === 'number'}}" class="controls-col">
+        <div class="row">
+          <div class="step" ontouchstart="minDown" ontouchend="release" ontouchcancel="release">
+            <text class="step-label">−</text>
+          </div>
+          <div class="value">
+            <text class="value-name">MIN</text>
+            <text class="value-num">{{min}}</text>
+          </div>
+          <div class="step" ontouchstart="minUp" ontouchend="release" ontouchcancel="release">
+            <text class="step-label">+</text>
+          </div>
+        </div>
+        <div class="row">
+          <div class="step" ontouchstart="maxDown" ontouchend="release" ontouchcancel="release">
+            <text class="step-label">−</text>
+          </div>
+          <div class="value">
+            <text class="value-name">MAX</text>
+            <text class="value-num">{{max}}</text>
+          </div>
+          <div class="step" ontouchstart="maxUp" ontouchend="release" ontouchcancel="release">
+            <text class="step-label">+</text>
+          </div>
+        </div>
+        <div class="row">
+          <div class="toggle {{noRepeat ? 'toggle-on' : ''}}" onclick="toggleNoRepeat">
+            <div class="dot {{noRepeat ? 'dot-on' : ''}}"></div>
+            <text class="toggle-label">No repeats</text>
+          </div>
+          <div if="{{noRepeat}}" class="reset" onclick="resetPool">
+            <text class="reset-label">Reset</text>
+          </div>
+        </div>
+      </div>
+      <div elif="{{mode === 'dice'}}" class="controls-col">
+        <div class="row">
+          <div class="choice {{dice === 1 ? 'choice-on' : ''}}" onclick="oneDie">
+            <text class="choice-label">1 die</text>
+          </div>
+          <div class="choice {{dice === 2 ? 'choice-on' : ''}}" onclick="twoDice">
+            <text class="choice-label">2 dice</text>
+          </div>
+        </div>
+        <text class="hint">Tap the dice or Roll</text>
+      </div>
+      <div else class="controls-col">
+        <text class="tally">{{tally}}</text>
+        <text class="hint">Tap the coin or Flip</text>
+      </div>
+    </div>
+
+    <div class="go {{exhausted ? 'go-reset' : ''}}" onclick="roll">
+      <text class="go-label {{exhausted ? 'go-label-reset' : ''}}">{{goLabel}}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import vibrator from '@system.vibrator'
+import {
+  randInt, rollDice, flipCoin, adjust, poolFor, poolLeft, poolTotal, drawFromPool,
+  pipPositions, defaults, parseState, serialize
+} from '../../common/random.js'
+
+var STORAGE_KEY = 'random-state'
+var FRAMES = 10 // roll animation: 10 frames of 50 ms = 0.5 s
+var FRAME_MS = 50
+var HOLD_MS = 450 // holding − / + this long starts stepping by 10
+var REPEAT_MS = 180
+var MAX_REPEATS = 120 // stops a repeat whose touchend never arrived
+var DIE = { one: { size: 96, pip: 18 }, two: { size: 72, pip: 14 } }
+
+export default {
+  private: {
+    mode: 'number',
+    min: 1,
+    max: 100,
+    dice: 1,
+    noRepeat: false,
+    big: '?',
+    bigSize: 'n3',
+    sub: '1 – 100',
+    dieSize: 'one',
+    dieFaces: [],
+    coinFace: '?',
+    coinClass: '',
+    tally: 'Heads 0 · Tails 0',
+    rolling: false,
+    exhausted: false,
+    goLabel: 'Roll'
+  },
+
+  onInit() {
+    var self = this
+    // Non-reactive bookkeeping.
+    this.st = defaults()
+    this.timer = null
+    this.hold = null // { timer, which, dir, n } while a − / + button is held
+    this.last = { number: null, dice: null, coin: null } // last result per mode, shown after a mode switch
+    this.counts = { heads: 0, tails: 0 } // coin tally, this session only
+    this.render()
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        if (!text) return
+        self.st = parseState(text)
+        self.render()
+      }
+    })
+  },
+
+  onHide() {
+    this.release()
+    this.finishRoll()
+  },
+
+  onDestroy() {
+    this.stopHold()
+    this.stopTimer()
+  },
+
+  save() {
+    storage.set({ key: STORAGE_KEY, value: serialize(this.st) })
+  },
+
+  // ---- rendering ----
+
+  render() {
+    var st = this.st
+    this.mode = st.mode
+    this.min = st.min
+    this.max = st.max
+    this.dice = st.dice
+    this.noRepeat = st.noRepeat
+    this.exhausted = false
+    this.goLabel = st.mode === 'coin' ? 'Flip' : 'Roll'
+    if (st.mode === 'number') this.renderNumber(this.last.number)
+    else if (st.mode === 'dice') this.renderDice(this.last.dice)
+    else this.renderCoin(this.last.coin)
+  },
+
+  renderNumber(n) {
+    var st = this.st
+    this.big = n === null ? '?' : String(n)
+    this.bigSize = this.big.length > 3 ? 'n4' : 'n3'
+    if (!st.noRepeat) {
+      this.sub = st.min + ' – ' + st.max
+      return
+    }
+    var pool = poolFor(st)
+    var left = poolLeft(pool)
+    if (left > 0) {
+      this.sub = left + ' of ' + poolTotal(pool) + ' left'
+    } else {
+      this.sub = 'All ' + poolTotal(pool) + ' drawn'
+      this.exhausted = true
+      this.goLabel = 'Start over'
+    }
+  },
+
+  renderDice(faces) {
+    var count = this.st.dice
+    var size = count === 2 ? 'two' : 'one'
+    var d = DIE[size]
+    var shown = faces && faces.length === count ? faces : count === 2 ? [6, 6] : [6]
+    var list = []
+    for (var i = 0; i < shown.length; i++) list.push(pipPositions(shown[i], d.size, d.pip))
+    this.dieSize = size
+    this.dieFaces = list
+    if (!faces || faces.length !== count) this.sub = 'Tap Roll'
+    else if (count === 2) this.sub = faces[0] + ' + ' + faces[1] + ' = ' + (faces[0] + faces[1])
+    else this.sub = 'You rolled ' + faces[0]
+  },
+
+  renderCoin(side) {
+    this.coinFace = side === 'heads' ? 'H' : side === 'tails' ? 'T' : '?'
+    this.coinClass = side === 'tails' ? 'tails' : side === 'heads' ? 'heads' : ''
+    this.sub = side === 'heads' ? 'Heads' : side === 'tails' ? 'Tails' : 'Tap Flip'
+    this.tally = 'Heads ' + this.counts.heads + ' · Tails ' + this.counts.tails
+  },
+
+  // ---- modes and settings ----
+
+  setMode(mode) {
+    if (this.rolling) return
+    this.release()
+    if (this.st.mode === mode) return
+    this.st.mode = mode
+    this.save()
+    this.render()
+  },
+
+  chooseNumber() { this.setMode('number') },
+  chooseDice() { this.setMode('dice') },
+  chooseCoin() { this.setMode('coin') },
+
+  setDice(n) {
+    if (this.rolling || this.st.dice === n) return
+    this.st.dice = n
+    this.last.dice = null
+    this.save()
+    this.render()
+  },
+
+  oneDie() { this.setDice(1) },
+  twoDice() { this.setDice(2) },
+
+  toggleNoRepeat() {
+    if (this.rolling) return
+    this.st.noRepeat = !this.st.noRepeat
+    this.last.number = null
+    this.save()
+    this.render()
+  },
+
+  resetPool() {
+    if (this.rolling) return
+    this.st.pool = null
+    this.last.number = null
+    this.save()
+    this.render()
+  },
+
+  // − / +: a tap steps by 1; holding steps to the next multiple of 10 every REPEAT_MS.
+  press(which, dir) {
+    if (this.rolling) return
+    var self = this
+    this.stopHold()
+    this.applyStep(which, dir, false)
+    this.hold = { timer: null, which: which, dir: dir, n: 0 }
+    this.hold.timer = setTimeout(function () { self.repeat() }, HOLD_MS)
+  },
+
+  repeat() {
+    var h = this.hold
+    if (!h) return
+    var self = this
+    this.applyStep(h.which, h.dir, true)
+    h.n++
+    h.timer = h.n < MAX_REPEATS ? setTimeout(function () { self.repeat() }, REPEAT_MS) : null
+  },
+
+  applyStep(which, dir, big) {
+    adjust(this.st, which, dir, big)
+    if (this.last.number !== null && (this.last.number < this.st.min || this.last.number > this.st.max)) {
+      this.last.number = null
+    }
+    this.render()
+  },
+
+  stopHold() {
+    if (this.hold && this.hold.timer) clearTimeout(this.hold.timer)
+    var held = !!this.hold
+    this.hold = null
+    return held
+  },
+
+  release() {
+    if (this.stopHold()) this.save() // settings are saved once per press, not per step
+  },
+
+  minDown() { this.press('min', -1) },
+  minUp() { this.press('min', 1) },
+  maxDown() { this.press('max', -1) },
+  maxUp() { this.press('max', 1) },
+
+  // ---- rolling ----
+
+  roll() {
+    if (this.rolling) return
+    this.release()
+    var st = this.st
+    var result
+    if (st.mode === 'number') {
+      if (st.noRepeat) {
+        var pool = poolFor(st)
+        if (poolLeft(pool) <= 0) {
+          this.resetPool() // "Start over"
+          return
+        }
+        result = drawFromPool(pool)
+        this.save()
+      } else {
+        result = randInt(st.min, st.max)
+      }
+    } else if (st.mode === 'dice') {
+      result = rollDice(st.dice).faces
+    } else {
+      result = flipCoin()
+    }
+    // The result is fixed now; the frames only show random values before it lands.
+    this.pending = result
+    this.frame = 0
+    this.rolling = true
+    this.schedule()
+  },
+
+  schedule() {
+    var self = this
+    this.stopTimer()
+    this.timer = setTimeout(function () { self.tick() }, FRAME_MS)
+  },
+
+  stopTimer() {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+  },
+
+  tick() {
+    this.timer = null
+    if (!this.rolling) return
+    this.frame++
+    if (this.frame >= FRAMES) {
+      this.finishRoll()
+      return
+    }
+    var st = this.st
+    if (st.mode === 'number') {
+      var n = randInt(st.min, st.max)
+      this.big = String(n)
+      this.bigSize = this.big.length > 3 ? 'n4' : 'n3'
+    } else if (st.mode === 'dice') {
+      var d = DIE[this.dieSize]
+      var faces = rollDice(st.dice).faces
+      var list = []
+      for (var i = 0; i < faces.length; i++) list.push(pipPositions(faces[i], d.size, d.pip))
+      this.dieFaces = list
+    } else {
+      var side = this.frame % 2 ? 'tails' : 'heads'
+      this.coinFace = side === 'heads' ? 'H' : 'T'
+      this.coinClass = side
+    }
+    this.schedule()
+  },
+
+  finishRoll() {
+    this.stopTimer()
+    if (!this.rolling) return
+    this.rolling = false
+    var st = this.st
+    var r = this.pending
+    if (st.mode === 'number') this.last.number = r
+    else if (st.mode === 'dice') this.last.dice = r
+    else {
+      this.last.coin = r
+      this.counts[r]++
+    }
+    this.render()
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (e) {}
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000000;
+}
+
+.tabs {
+  width: 164px;
+  height: 36px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.tab {
+  width: 52px;
+  height: 36px;
+  border-radius: 18px;
+  justify-content: center;
+  align-items: center;
+  background-color: #1c1c1e;
+}
+
+.tab-on {
+  background-color: #ff9f0a;
+}
+
+.tab-label {
+  font-size: 14px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.stage {
+  width: 164px;
+  height: 140px;
+  margin-top: 6px;
+  justify-content: center;
+  align-items: center;
+}
+
+.stage-col {
+  flex-direction: column;
+  align-items: center;
+}
+
+.big {
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+
+.n3 {
+  font-size: 76px;
+}
+
+.n4 {
+  font-size: 58px;
+}
+
+.spin {
+  color: #8e8e93;
+}
+
+.sub {
+  height: 22px;
+  margin-top: 4px;
+  font-size: 15px;
+  color: #ff9f0a;
+  text-align: center;
+}
+
+.dice {
+  flex-direction: row;
+  justify-content: center;
+}
+
+.die {
+  border-radius: 14px;
+  background-color: #f2f2f7;
+}
+
+.one {
+  width: 96px;
+  height: 96px;
+}
+
+.two {
+  width: 72px;
+  height: 72px;
+  margin-left: 5px;
+  margin-right: 5px;
+}
+
+.pip {
+  position: absolute;
+  background-color: #1c1c1e;
+}
+
+.one-pip {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+}
+
+.two-pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.coin {
+  width: 100px;
+  height: 100px;
+  border-radius: 50px;
+  justify-content: center;
+  align-items: center;
+  background-color: #3a3a3c;
+}
+
+.heads {
+  background-color: #ffcc00;
+}
+
+.tails {
+  background-color: #aeaeb2;
+}
+
+.coin-face {
+  font-size: 52px;
+  font-weight: bold;
+  color: #1c1c1e;
+  text-align: center;
+}
+
+.controls {
+  width: 164px;
+  height: 156px;
+  margin-top: 6px;
+}
+
+.controls-col {
+  width: 164px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.row {
+  width: 164px;
+  height: 46px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.step {
+  width: 50px;
+  height: 46px;
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.step-label {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+
+.value {
+  width: 60px;
+  height: 46px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.value-name {
+  font-size: 11px;
+  color: #8e8e93;
+  text-align: center;
+}
+
+.value-num {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+
+.toggle {
+  flex: 1;
+  height: 40px;
+  border-radius: 20px;
+  padding-left: 10px;
+  flex-direction: row;
+  align-items: center;
+  background-color: #1c1c1e;
+}
+
+.toggle-on {
+  background-color: #3a2a0a;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #8e8e93;
+}
+
+.dot-on {
+  border-color: #ff9f0a;
+  background-color: #ff9f0a;
+}
+
+.toggle-label {
+  margin-left: 6px;
+  font-size: 14px;
+  lines: 1;
+  color: #ffffff;
+}
+
+.reset {
+  width: 52px;
+  height: 40px;
+  margin-left: 6px;
+  border-radius: 20px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.reset-label {
+  font-size: 14px;
+  color: #ff9f0a;
+  text-align: center;
+}
+
+.choice {
+  width: 79px;
+  height: 46px;
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.choice-on {
+  background-color: #ff9f0a;
+}
+
+.choice-label {
+  font-size: 17px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #8e8e93;
+  text-align: center;
+}
+
+.tally {
+  margin-top: 12px;
+  font-size: 17px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.go {
+  width: 164px;
+  height: 60px;
+  margin-top: 8px;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  background-color: #ff9f0a;
+}
+
+.go-reset {
+  background-color: #2c2c2e;
+}
+
+.go-label {
+  font-size: 24px;
+  font-weight: bold;
+  color: #000000;
+  text-align: center;
+}
+
+.go-label-reset {
+  color: #ff9f0a;
+}
+</style>
