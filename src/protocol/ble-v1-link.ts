@@ -78,7 +78,7 @@ class XiaomiCharacteristic {
   }
 
   private raw(bytes: Uint8Array): void {
-    this.writer.write(bytes).catch((e) => this.link.log(`⚠ ghi GATT lỗi: ${(e as Error).message}`));
+    this.writer.write(bytes).catch((e) => this.link.log(`⚠ GATT write failed: ${(e as Error).message}`));
   }
 
   private sendChunk(index: number, chunkSize: number): void {
@@ -89,7 +89,7 @@ class XiaomiCharacteristic {
   private finishCurrent(ok: boolean): void {
     const done = this.current?.done;
     this.current = null;
-    if (done) ok ? done.resolve() : done.reject(new Error('Band từ chối (NACK)'));
+    if (done) ok ? done.resolve() : done.reject(new Error('Band rejected (NACK)'));
   }
 
   private sendNext(): void {
@@ -236,7 +236,7 @@ export class BleV1Link implements Link {
   }
 
   sendData(chunk: Uint8Array): Promise<void> {
-    if (!this.upload) return Promise.reject(new Error('Thiết bị không có characteristic upload (0x0055)'));
+    if (!this.upload) return Promise.reject(new Error('Device has no upload characteristic (0x0055)'));
     return this.upload.write(chunk, true);
   }
 

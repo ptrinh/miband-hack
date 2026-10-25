@@ -32,7 +32,7 @@ async function handleApi(req: Request, url: URL): Promise<Response> {
 
   if (url.pathname === '/api/xiaomi/poll' && req.method === 'POST') {
     const body = (await req.json().catch(() => ({}))) as { lp?: string; server?: string };
-    if (!body.lp || !isXiaomiLongPollUrl(body.lp)) return json({ error: 'lp không hợp lệ' }, 400);
+    if (!body.lp || !isXiaomiLongPollUrl(body.lp)) return json({ error: 'invalid lp' }, 400);
     const servers = body.server && (SERVERS as readonly string[]).includes(body.server) ? [body.server] : SERVERS;
 
     const session = await pollQrLogin(body.lp, POLL_WAIT_MS);
@@ -52,7 +52,7 @@ export default {
         return await handleApi(req, url);
       } catch (e) {
         // never log request bodies or tokens
-        return json({ error: (e as Error).message || 'Lỗi không xác định' }, 502);
+        return json({ error: (e as Error).message || 'Unknown error' }, 502);
       }
     }
     return env.ASSETS.fetch(req);

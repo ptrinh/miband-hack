@@ -1,4 +1,5 @@
 import { type ByteTransport, SPP_UUID } from './types';
+import { t } from '../i18n';
 
 export const webSerialAvailable = (): boolean => typeof navigator !== 'undefined' && 'serial' in navigator;
 
@@ -16,7 +17,7 @@ export class SerialTransport implements ByteTransport {
   private constructor(private readonly port: SerialPort, readonly label: string) {}
 
   static async request(): Promise<SerialTransport> {
-    if (!webSerialAvailable()) throw new Error('Trình duyệt không hỗ trợ Web Serial — dùng Chrome hoặc Edge bản desktop.');
+    if (!webSerialAvailable()) throw new Error(t('errNoWebSerial'));
     const port = await navigator.serial.requestPort({
       filters: [{ bluetoothServiceClassId: SPP_UUID }],
       allowedBluetoothServiceClassIds: [SPP_UUID],
@@ -24,10 +25,10 @@ export class SerialTransport implements ByteTransport {
     // Baud rate is meaningless for RFCOMM but required by the API.
     await port.open({ baudRate: 115200, bufferSize: 65536 });
     const info = port.getInfo() as SerialPortInfo & { bluetoothServiceClassId?: string };
-    const t = new SerialTransport(port, info.bluetoothServiceClassId ? 'Bluetooth SPP' : 'Serial');
-    t.writer = port.writable!.getWriter();
-    void t.readLoop();
-    return t;
+    const transport = new SerialTransport(port, info.bluetoothServiceClassId ? 'Bluetooth SPP' : 'Serial');
+    transport.writer = port.writable!.getWriter();
+    void transport.readLoop();
+    return transport;
   }
 
   private async readLoop(): Promise<void> {
@@ -54,7 +55,7 @@ export class SerialTransport implements ByteTransport {
   }
 
   async write(data: Uint8Array): Promise<void> {
-    if (!this.writer) throw new Error('Cổng serial chưa mở');
+    if (!this.writer) throw new Error('Serial port is not open');
     await this.writer.write(data);
   }
 

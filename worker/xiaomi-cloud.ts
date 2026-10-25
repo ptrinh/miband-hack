@@ -84,7 +84,7 @@ export async function startQrLogin(): Promise<QrStart> {
   const r = await fetch(`https://account.xiaomi.com/longPolling/loginUrl?${params}`);
   if (!r.ok) throw new Error(`Xiaomi loginUrl HTTP ${r.status}`);
   const d = toJson(await r.text());
-  if (typeof d.qr !== 'string' || typeof d.lp !== 'string') throw new Error('Xiaomi không trả về mã QR');
+  if (typeof d.qr !== 'string' || typeof d.lp !== 'string') throw new Error('Xiaomi did not return a QR code');
   return { qr: d.qr, loginUrl: String(d.loginUrl ?? ''), lp: d.lp, timeout: Number(d.timeout ?? 300) };
 }
 
@@ -111,11 +111,11 @@ export async function pollQrLogin(lp: string, waitMs: number): Promise<Session |
   }
   if (r.status !== 200) return null;
   const d = toJson(await r.text());
-  if (!d.ssecurity || !d.location) throw new Error('Đăng nhập Xiaomi không thành công');
+  if (!d.ssecurity || !d.location) throw new Error('Xiaomi login failed');
 
   const loc = await fetch(String(d.location), { redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const cookie = loc.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
-  if (!cookie) throw new Error('Không lấy được service token từ Xiaomi');
+  if (!cookie) throw new Error('Could not get a service token from Xiaomi');
   return new Session(String(d.userId), String(d.ssecurity), cookie);
 }
 

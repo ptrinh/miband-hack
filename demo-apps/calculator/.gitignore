@@ -1,0 +1,5 @@
+node_modules/
+build/
+dist/
+# release signing key: keep it out of git, back it up (same key needed to sign updates)
+sign/private.pem

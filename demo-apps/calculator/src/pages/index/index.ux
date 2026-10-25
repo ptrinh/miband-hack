@@ -1,0 +1,107 @@
+<template>
+  <div class="page">
+    <div class="screen">
+      <text class="expr">{{expr}}</text>
+      <text class="value {{sizeClass}}">{{display}}</text>
+    </div>
+    <div class="row" for="{{row in rows}}">
+      <div class="btn {{key.cls}}" for="{{key in row}}" onclick="tap(key.k)">
+        <text class="label {{key.t.length > 1 ? 'small' : ''}}">{{key.t}}</text>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { initialState, press, expression } from '../../common/calc.js'
+
+function k(t, key, cls) {
+  return { t: t, k: key, cls: cls }
+}
+
+export default {
+  private: {
+    state: initialState(),
+    display: '0',
+    expr: '',
+    sizeClass: 'size-l',
+    rows: [
+      [k('C', 'C', 'fn'), k('DEL', 'DEL', 'fn'), k('÷', '/', 'op'), k('×', '*', 'op')],
+      [k('7', '7', 'num'), k('8', '8', 'num'), k('9', '9', 'num'), k('-', '-', 'op')],
+      [k('4', '4', 'num'), k('5', '5', 'num'), k('6', '6', 'num'), k('+', '+', 'op')],
+      [k('1', '1', 'num'), k('2', '2', 'num'), k('3', '3', 'num'), k('+/-', 'NEG', 'fn')],
+      [k('0', '0', 'num wide'), k('.', '.', 'num'), k('=', '=', 'eq')]
+    ]
+  },
+
+  tap(key) {
+    this.state = press(this.state, key)
+    var d = this.state.display
+    this.display = d
+    this.expr = expression(this.state)
+    this.sizeClass = d.length <= 6 ? 'size-l' : d.length <= 9 ? 'size-m' : 'size-s'
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 28px 6px 18px 6px;
+}
+
+.screen {
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  height: 96px;
+  padding: 0 4px 6px 4px;
+}
+
+.expr {
+  height: 24px;
+  font-size: 18px;
+  color: #8a8a8e;
+  text-align: right;
+}
+
+.value {
+  height: 52px;
+  color: #ffffff;
+  text-align: right;
+}
+
+.size-l { font-size: 44px; }
+.size-m { font-size: 32px; }
+.size-s { font-size: 22px; }
+
+.row {
+  flex: 1;
+  flex-direction: row;
+}
+
+.btn {
+  flex: 1;
+  margin: 3px;
+  border-radius: 20px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.wide { flex: 2; }
+.fn { background-color: #5a5a5e; }
+.op { background-color: #ff9f0a; }
+.eq { background-color: #30d158; }
+
+.label {
+  font-size: 26px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.small { font-size: 17px; }
+</style>

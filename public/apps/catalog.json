@@ -3,7 +3,11 @@
     {
       "id": "uk.trinh.miband.calculator",
       "name": "Calculator",
-      "description": "Máy tính bỏ túi: + − × ÷, số thập phân. App mẫu mã nguồn mở của MiBand Hack.",
+      "description": {
+        "en": "Pocket calculator: + − × ÷ and decimals. Open-source demo app.",
+        "zh": "简易计算器：加减乘除与小数。开源示例应用。",
+        "vi": "Máy tính bỏ túi: + − × ÷, số thập phân. App mẫu mã nguồn mở."
+      },
       "file": "apps/calculator.rpk",
       "icon": "apps/calculator.png",
       "devices": ["Mi Band 9", "Mi Band 10"],

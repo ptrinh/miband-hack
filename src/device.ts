@@ -5,6 +5,7 @@ import { md5 } from './core/crypto';
 import type { ParsedFile } from './core/files';
 import { type Command, decodeCommand, encodeCommand } from './core/proto';
 import { deferred, type Link } from './protocol/link';
+import { t } from './i18n';
 
 // Command types / subtypes, from Gadgetbridge's Xiaomi*Service classes (AGPL-3.0).
 const SYSTEM = 2;
@@ -66,20 +67,20 @@ export class XiaomiDevice {
     link.log = (m) => this.onLog(m);
     link.onCommand = (b) => this.handleBytes(b);
     link.onReadyForAuth = () => {
-      this.onLog('→ bắt đầu xác thực');
+      this.onLog('→ starting authentication');
       void this.send(this.auth.buildNonceCommand());
     };
     link.onClose = () => {
       this.connected = false;
-      this.authDone.reject(new Error('Mất kết nối'));
-      this.waiters.forEach((w) => w.reject(new Error('Mất kết nối')));
+      this.authDone.reject(new Error(t('errConnLost')));
+      this.waiters.forEach((w) => w.reject(new Error(t('errConnLost'))));
       this.waiters = [];
       this.onDisconnect();
     };
   }
 
   async connect(): Promise<void> {
-    const timer = setTimeout(() => this.authDone.reject(new Error('Hết thời gian xác thực — band có đang kết nối với điện thoại không?')), AUTH_TIMEOUT_MS);
+    const timer = setTimeout(() => this.authDone.reject(new Error(t('errAuthTimeout'))), AUTH_TIMEOUT_MS);
     try {
       await this.link.start();
       await this.authDone.promise;
@@ -87,7 +88,7 @@ export class XiaomiDevice {
       clearTimeout(timer);
     }
     this.connected = true;
-    this.onLog('✓ đã xác thực');
+    this.onLog('✓ authenticated');
     await Promise.allSettled([this.refreshInfo(), this.refreshApps(), this.refreshFaces()]);
   }
 
@@ -109,7 +110,7 @@ export class XiaomiDevice {
         reject,
         timer: setTimeout(() => {
           this.waiters = this.waiters.filter((x) => x !== w);
-          reject(new Error(`Band không trả lời: ${what}`));
+          reject(new Error(t('errNoReply', { what })));
         }, timeoutMs),
       };
       this.waiters.push(w);
@@ -128,7 +129,7 @@ export class XiaomiDevice {
     try {
       cmd = decodeCommand(bytes);
     } catch (e) {
-      this.onLog(`⚠ không giải mã được protobuf (${(e as Error).message}): ${hex(bytes, 32)}`);
+      this.onLog(`⚠ could not decode protobuf (${(e as Error).message}): ${hex(bytes, 32)}`);
       return;
     }
     if (cmd.type === AUTH_COMMAND_TYPE) {
@@ -149,7 +150,7 @@ export class XiaomiDevice {
     if (cmd.subtype === CMD_NONCE) {
       const dv = cmd.auth?.deviceVerify;
       if (!dv) {
-        this.authDone.reject(new Error(`Band từ chối bắt tay (status=${cmd.auth?.status ?? cmd.status ?? '?'})`));
+        this.authDone.reject(new Error(t('errHandshake', { status: cmd.auth?.status ?? cmd.status ?? '?' })));
         return;
       }
       try {
@@ -164,7 +165,7 @@ export class XiaomiDevice {
       this.link.onAuthSuccess();
       this.authDone.resolve();
     } else if (cmd.subtype === CMD_SEND_USERID) {
-      this.authDone.reject(new Error('Thiết bị dùng xác thực plaintext (đời cũ) — chưa hỗ trợ'));
+      this.authDone.reject(new Error(t('errLegacy')));
     }
   }
 
@@ -198,23 +199,23 @@ export class XiaomiDevice {
 
   refreshInfo(): Promise<unknown> {
     return Promise.allSettled([
-      this.request({ type: SYSTEM, subtype: SYS_DEVICE_INFO }, (c) => c.type === SYSTEM && c.subtype === SYS_DEVICE_INFO, 'thông tin thiết bị'),
-      this.request({ type: SYSTEM, subtype: SYS_BATTERY }, (c) => c.type === SYSTEM && c.subtype === SYS_BATTERY, 'pin'),
+      this.request({ type: SYSTEM, subtype: SYS_DEVICE_INFO }, (c) => c.type === SYSTEM && c.subtype === SYS_DEVICE_INFO, t('whatInfo')),
+      this.request({ type: SYSTEM, subtype: SYS_BATTERY }, (c) => c.type === SYSTEM && c.subtype === SYS_BATTERY, t('whatBattery')),
     ]);
   }
 
   refreshApps(): Promise<Command> {
-    return this.request({ type: RPK, subtype: RPK_LIST }, (c) => c.type === RPK && c.subtype === RPK_LIST, 'danh sách app');
+    return this.request({ type: RPK, subtype: RPK_LIST }, (c) => c.type === RPK && c.subtype === RPK_LIST, t('whatApps'));
   }
 
   refreshFaces(): Promise<Command> {
-    return this.request({ type: WATCHFACE, subtype: WF_LIST }, (c) => c.type === WATCHFACE && c.subtype === WF_LIST, 'danh sách watchface');
+    return this.request({ type: WATCHFACE, subtype: WF_LIST }, (c) => c.type === WATCHFACE && c.subtype === WF_LIST, t('whatFaces'));
   }
 
   // ------------------------------------------------------------- actions ---
 
   async deleteApp(app: InstalledApp): Promise<void> {
-    this.onLog(`→ xoá app ${app.id}`);
+    this.onLog(`→ deleting app ${app.id}`);
     await this.send({ type: RPK, subtype: RPK_DELETE, rpk: { rpkDel: { id: app.id, sha: app.sha } } });
     // the band usually sends no reply to a delete
     await new Promise((r) => setTimeout(r, 800));
@@ -227,14 +228,14 @@ export class XiaomiDevice {
   }
 
   async deleteWatchface(face: InstalledFace): Promise<void> {
-    if (face.active) throw new Error('Không xoá được watchface đang dùng — đổi sang mặt khác trước');
-    if (!face.canDelete) throw new Error('Watchface hệ thống, không xoá được');
+    if (face.active) throw new Error(t('errDeleteActive'));
+    if (!face.canDelete) throw new Error(t('errSystemFace'));
     await this.send({ type: WATCHFACE, subtype: WF_DELETE, watchface: { watchfaceId: face.id } });
   }
 
   async install(file: ParsedFile, onProgress: (pct: number, stage: string) => void): Promise<void> {
     if (file.kind === 'unsupported') throw new Error(file.reason);
-    if (this.busy) throw new Error('Đang cài một file khác');
+    if (this.busy) throw new Error(t('errBusy'));
     this.busy = true;
     try {
       if (file.kind === 'rpk') await this.installRpk(file, onProgress);
@@ -245,39 +246,39 @@ export class XiaomiDevice {
   }
 
   private async installRpk(file: Extract<ParsedFile, { kind: 'rpk' }>, onProgress: (pct: number, stage: string) => void): Promise<void> {
-    onProgress(0, 'Xin phép cài');
+    onProgress(0, t('stRequesting'));
     const reply = await this.request(
       { type: RPK, subtype: RPK_INSTALL, rpk: { rpkInfo: { id: file.id, unknown2: file.versionCode, size: file.bytes.length } } },
       (c) => c.type === RPK && c.subtype === RPK_INSTALL,
-      'yêu cầu cài app',
+      t('whatAppInstall'),
     );
     const status = reply.rpk?.rpkInstallStart?.cmd ?? 0;
-    if (status !== 0) throw new Error(`Band từ chối cài app (status=${status}). App có thể không tương thích với máy này.`);
+    if (status !== 0) throw new Error(t('errAppRejected', { status }));
 
-    const installed = this.waitFor((c) => c.type === RPK && c.subtype === RPK_INSTALLED, 'xác nhận cài xong', INSTALL_CONFIRM_TIMEOUT_MS);
+    const installed = this.waitFor((c) => c.type === RPK && c.subtype === RPK_INSTALLED, t('whatInstallConfirm'), INSTALL_CONFIRM_TIMEOUT_MS);
     installed.catch(() => {}); // awaited below
-    await this.upload(UPLOAD_TYPE_RPK, file.bytes, (p) => onProgress(p, 'Đang gửi'));
-    onProgress(100, 'Chờ band cài đặt');
+    await this.upload(UPLOAD_TYPE_RPK, file.bytes, (p) => onProgress(p, t('stSending')));
+    onProgress(100, t('stWaitInstall'));
     try {
       await installed;
     } catch {
-      this.onLog('⚠ band không gửi xác nhận cài xong — kiểm tra danh sách app trên band');
+      this.onLog('⚠ band sent no install confirmation — check the app list on the band');
     }
     await this.refreshApps();
   }
 
   private async installWatchface(file: Extract<ParsedFile, { kind: 'watchface' }>, onProgress: (pct: number, stage: string) => void): Promise<void> {
-    onProgress(0, 'Xin phép cài');
+    onProgress(0, t('stRequesting'));
     const reply = await this.request(
       { type: WATCHFACE, subtype: WF_INSTALL, watchface: { watchfaceInstallStart: { id: file.id, size: file.bytes.length } } },
       (c) => c.type === WATCHFACE && c.subtype === WF_INSTALL,
-      'yêu cầu cài watchface',
+      t('whatFaceInstall'),
     );
     const status = reply.watchface?.installStatus ?? 0;
-    if (status === 2) throw new Error('Watchface này đã có trên band');
-    if (status !== 0) throw new Error(`Band từ chối cài watchface (status=${status})`);
-    await this.upload(UPLOAD_TYPE_WATCHFACE, file.bytes, (p) => onProgress(p, 'Đang gửi'));
-    onProgress(100, 'Đặt làm mặt đồng hồ');
+    if (status === 2) throw new Error(t('errFaceExists'));
+    if (status !== 0) throw new Error(t('errFaceRejected', { status }));
+    await this.upload(UPLOAD_TYPE_WATCHFACE, file.bytes, (p) => onProgress(p, t('stSending')));
+    onProgress(100, t('stSetFace'));
     await new Promise((r) => setTimeout(r, 1500));
     await this.setWatchface(file.id);
   }
@@ -288,11 +289,11 @@ export class XiaomiDevice {
     const reply = await this.request(
       { type: DATA_UPLOAD, subtype: UPLOAD_START, dataUpload: { dataUploadRequest: { type, md5sum, size: bytes.length } } },
       (c) => c.type === DATA_UPLOAD && c.subtype === UPLOAD_START,
-      'bắt đầu upload',
+      t('whatUploadStart'),
     );
     const ack = reply.dataUpload?.dataUploadAck;
-    if (!ack) throw new Error('Band trả lời upload không hợp lệ');
-    if ((ack.errno ?? 0) !== 0) throw new Error(`Band từ chối upload (errno=${ack.errno})`);
+    if (!ack) throw new Error(t('errUploadInvalid'));
+    if ((ack.errno ?? 0) !== 0) throw new Error(t('errUploadRefused', { errno: ack.errno ?? '?' }));
     const chunkSize = ack.chunkSize || 2048;
     const resume = ack.resumePosition ?? 0;
     this.onLog(`upload: chunk=${chunkSize}B, resume=${resume}, size=${bytes.length}B`);
@@ -302,7 +303,7 @@ export class XiaomiDevice {
     const partSize = chunkSize - 4;
     const total = Math.ceil(payload.length / partSize);
     for (let i = 0; i < total; i++) {
-      if (!this.connected) throw new Error('Mất kết nối khi đang upload');
+      if (!this.connected) throw new Error(t('errUploadLost'));
       const part = payload.subarray(i * partSize, (i + 1) * partSize);
       await this.link.sendData(concat(u16le(total), u16le(i + 1), part));
       onProgress(Math.round(((i + 1) * 100) / total));

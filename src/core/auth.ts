@@ -1,6 +1,7 @@
 import { concat, equals, fromHex } from './bytes';
 import { aesCtr, ccmDecrypt, ccmEncrypt, hmacSha256, randomBytes } from './crypto';
 import { type Command, encodeCompanionDevice } from './proto';
+import { t } from '../i18n';
 
 // Ported from Gadgetbridge XiaomiAuthService (AGPL-3.0).
 export const AUTH_COMMAND_TYPE = 1;
@@ -11,7 +12,7 @@ export const CMD_AUTH = 27;
 /** Parses the 32-hex-char auth key (with or without 0x) into 16 bytes. */
 export function parseAuthKey(key: string): Uint8Array {
   const bytes = fromHex(key);
-  if (bytes.length !== 16) throw new Error('Auth key phải có đúng 32 ký tự hex');
+  if (bytes.length !== 16) throw new Error(t('errAuthKeyLen'));
   return bytes;
 }
 
@@ -50,7 +51,7 @@ export class AuthSession {
     this.encNonce = k.slice(36, 40);
 
     const confirm = hmacSha256(this.decKey, concat(watchNonce, this.phoneNonce));
-    if (!equals(confirm, watchHmac)) throw new Error('Sai auth key (HMAC của band không khớp)');
+    if (!equals(confirm, watchHmac)) throw new Error(t('errWrongKey'));
 
     const deviceInfo = encodeCompanionDevice({
       unknown1: 0,

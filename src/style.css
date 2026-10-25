@@ -146,4 +146,7 @@ footer p { margin: 4px 0; }
 select { font: 14px var(--sans); padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .catalog-icon { width: 44px; height: 44px; border-radius: 12px; flex: none; object-fit: cover; background: var(--bg); display: grid; place-items: center; font: 600 10px var(--mono); color: var(--muted); }
 ul.catalog .name small { white-space: normal; }
+.lang-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
+.lang-switch button { border: 0; border-radius: 999px; padding: 3px 10px; font-size: 12px; background: transparent; color: var(--muted); }
+.lang-switch button.on { background: var(--ink); color: var(--panel); }
 .hidden { display: none !important; }

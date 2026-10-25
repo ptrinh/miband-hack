@@ -1,5 +1,6 @@
 import { unzipSync } from 'fflate';
 import { cstring, readU32le } from './bytes';
+import { t } from '../i18n';
 
 // Ported from Gadgetbridge XiaomiFWHelper (AGPL-3.0).
 
@@ -29,13 +30,13 @@ function parseRpk(bytes: Uint8Array): ParsedFile | null {
   try {
     manifest = JSON.parse(new TextDecoder().decode(raw));
   } catch {
-    return { kind: 'unsupported', bytes, reason: 'manifest.json không phải JSON hợp lệ' };
+    return { kind: 'unsupported', bytes, reason: t('errNotJson') };
   }
   const id = manifest.package;
   const name = manifest.name;
   const version = manifest.versionName;
   if (typeof id !== 'string' || typeof name !== 'string' || version === undefined) {
-    return { kind: 'unsupported', bytes, reason: 'manifest.json thiếu package / name / versionName' };
+    return { kind: 'unsupported', bytes, reason: t('errManifestFields') };
   }
   const versionCode = typeof manifest.versionCode === 'number' ? manifest.versionCode : 1;
 
@@ -55,7 +56,7 @@ function parseRpk(bytes: Uint8Array): ParsedFile | null {
 function parseWatchfaceV2(fw: Uint8Array): ParsedFile | null {
   if (fw.length < 0x80 || fw[0] !== 0x5a || fw[1] !== 0xa5) return null;
   const id = cstring(fw, 0x28);
-  if (!id || !/^\d+$/.test(id)) return { kind: 'unsupported', bytes: fw, reason: 'Watchface không có ID dạng số' };
+  if (!id || !/^\d+$/.test(id)) return { kind: 'unsupported', bytes: fw, reason: t('errFaceNoId') };
   let name: string | null;
   if (fw[0x68] === 0xff && fw[0x69] === 0xff && fw[0x6a] === 0xff && fw[0x6b] === 0xff) {
     name = extractLocalizedName(fw, readU32le(fw, 0x74), readU32le(fw, 0x78));
@@ -88,16 +89,16 @@ function extractLocalizedName(fw: Uint8Array, off: number, size: number): string
 }
 
 export function parseFile(bytes: Uint8Array): ParsedFile {
-  if (bytes.length > MAX_SIZE) return { kind: 'unsupported', bytes, reason: 'File lớn hơn 128 MB' };
+  if (bytes.length > MAX_SIZE) return { kind: 'unsupported', bytes, reason: t('errTooBig') };
   const wf = parseWatchfaceV2(bytes);
   if (wf) return wf;
   if (bytes.length >= 100 && WATCHFACE_V3_HEADER.every((v, i) => bytes[i] === v)) {
-    return { kind: 'unsupported', bytes, reason: 'Watchface định dạng v3 chưa được hỗ trợ (chưa rõ cách lấy ID)' };
+    return { kind: 'unsupported', bytes, reason: t('errFaceV3') };
   }
   if (bytes[0] === 96 && bytes[1] === 90 && bytes[2] === 90 && bytes[4] === 126) {
-    return { kind: 'unsupported', bytes, reason: 'Đây là firmware — không hỗ trợ flash firmware (rủi ro brick)' };
+    return { kind: 'unsupported', bytes, reason: t('errFirmware') };
   }
   const rpk = parseRpk(bytes);
   if (rpk) return rpk;
-  return { kind: 'unsupported', bytes, reason: 'Không nhận ra định dạng (cần .rpk hoặc watchface .bin)' };
+  return { kind: 'unsupported', bytes, reason: t('errUnknownFormat') };
 }

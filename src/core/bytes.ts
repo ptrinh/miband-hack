@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 export function concat(...parts: Uint8Array[]): Uint8Array {
   let len = 0;
   for (const p of parts) len += p.length;
@@ -17,7 +19,7 @@ export function hex(b: Uint8Array, max = 64): string {
 
 export function fromHex(s: string): Uint8Array {
   const clean = s.trim().replace(/^0x/i, '').replace(/[\s:-]/g, '');
-  if (clean.length % 2 !== 0 || /[^0-9a-f]/i.test(clean)) throw new Error('Chuỗi hex không hợp lệ');
+  if (clean.length % 2 !== 0 || /[^0-9a-f]/i.test(clean)) throw new Error(t('errHex'));
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
   return out;

@@ -1,4 +1,5 @@
 import { type ByteTransport, uuid16, XIAOMI_SERVICE } from './types';
+import { t } from '../i18n';
 
 export const webBluetoothAvailable = (): boolean => typeof navigator !== 'undefined' && 'bluetooth' in navigator;
 
@@ -48,7 +49,7 @@ async function optionalChar(svc: BluetoothRemoteGATTService, id: number) {
 
 /** Opens the device picker, connects and detects which Xiaomi BLE protocol the band speaks. */
 export async function requestBle(): Promise<BleConnection> {
-  if (!webBluetoothAvailable()) throw new Error('Trình duyệt không hỗ trợ Web Bluetooth — dùng Chrome hoặc Edge.');
+  if (!webBluetoothAvailable()) throw new Error(t('errNoWebBt'));
   const device = await navigator.bluetooth.requestDevice({
     filters: [{ services: [XIAOMI_SERVICE] }, { namePrefix: 'Xiaomi' }, { namePrefix: 'Redmi' }],
     optionalServices: [XIAOMI_SERVICE],
@@ -75,7 +76,7 @@ export async function requestBle(): Promise<BleConnection> {
   }
 
   gatt.disconnect();
-  throw new Error('Không nhận ra giao thức BLE của thiết bị này. Mi Band 9/10 dùng Bluetooth Classic — chọn "Kết nối qua SPP".');
+  throw new Error(t('errUnknownBle'));
 }
 
 export class BleV2Transport implements ByteTransport {

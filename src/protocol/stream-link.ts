@@ -83,9 +83,9 @@ export class StreamLink implements Link {
       await this.sendSessionConfig();
       return;
     }
-    this.log('→ hỏi phiên bản giao thức SPP');
+    this.log('→ asking for SPP protocol version');
     this.versionTimer = setTimeout(() => {
-      this.log('Band không trả lời phiên bản, dùng SPP V1');
+      this.log('No version reply, falling back to SPP V1');
       this.onVersion(new Uint8Array(0));
     }, VERSION_TIMEOUT_MS);
     await this.write(v1VersionRequest());
@@ -107,7 +107,7 @@ export class StreamLink implements Link {
     if (this.versionTimer) clearTimeout(this.versionTimer);
     this.versionTimer = null;
     if (this.mode !== 'detect') return;
-    if (payload.length > 0) this.log(`Phiên bản SPP: ${hex(payload)}`);
+    if (payload.length > 0) this.log(`SPP version: ${hex(payload)}`);
     if (payload.length > 0 && payload[0] >= 2) {
       this.mode = 'v2';
       this.rx.clear();
@@ -137,14 +137,14 @@ export class StreamLink implements Link {
       }
       this.rx.skip(res.size);
       if (!res.packet) {
-        this.log('⚠ frame lỗi checksum, bỏ qua');
+        this.log('⚠ frame checksum error, dropped');
         continue;
       }
       try {
         if (v2) this.handleV2(res.packet as V2Packet);
         else this.handleV1(res.packet as V1Packet);
       } catch (e) {
-        this.log(`⚠ lỗi xử lý gói: ${(e as Error).message}`);
+        this.log(`⚠ packet handling error: ${(e as Error).message}`);
       }
     }
   }
@@ -217,7 +217,7 @@ export class StreamLink implements Link {
   private onNack(expected: number): void {
     this.onAck((expected - 1) & 0xff);
     if (this.unacked[0]?.seq !== expected) return;
-    this.log(`⚠ band yêu cầu gửi lại từ gói ${expected}`);
+    this.log(`⚠ band requested resend from packet ${expected}`);
     void this.resendAll();
   }
 
@@ -232,11 +232,11 @@ export class StreamLink implements Link {
       this.resendTimer = null;
       if (this.unacked.length === 0) return;
       if (++this.timeoutsWithoutAck >= MAX_TIMEOUTS_WITHOUT_ACK) {
-        this.log('⚠ band không phản hồi, ngắt kết nối');
+        this.log('⚠ band not responding, disconnecting');
         void this.close();
         return;
       }
-      this.log(`⚠ hết thời gian chờ ack gói ${this.unacked[0].seq}, gửi lại`);
+      this.log(`⚠ ack timeout for packet ${this.unacked[0].seq}, resending`);
       void this.resendAll();
     }, RESEND_TIMEOUT_MS);
   }
@@ -248,7 +248,7 @@ export class StreamLink implements Link {
       await d.promise;
     }
     if (channel === 'proto' || channel === 'activity') {
-      if (!this.auth) throw new Error('Chưa xác thực');
+      if (!this.auth) throw new Error('Not authenticated');
       body = this.auth.encryptV2(body);
     }
     const seq = this.nextSeq;
@@ -265,7 +265,7 @@ export class StreamLink implements Link {
     const dataType = channel === 'auth' ? V1_DATA_AUTH : channel === 'activity' ? V1_DATA_PLAIN : V1_DATA_ENCRYPTED;
     let payload = body;
     if (dataType === V1_DATA_ENCRYPTED) {
-      if (!this.auth) throw new Error('Chưa xác thực');
+      if (!this.auth) throw new Error('Not authenticated');
       if (channel === 'proto') {
         const counter = ++this.encryptionCounter;
         const enc = this.auth.encrypt(body, counter);

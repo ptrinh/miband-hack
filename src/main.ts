@@ -7,20 +7,22 @@ import type { Link } from './protocol/link';
 import { StreamLink } from './protocol/stream-link';
 import { requestBle, webBluetoothAvailable } from './transport/ble';
 import { SerialTransport, webSerialAvailable } from './transport/serial';
+import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
 
 const KEY_STORAGE = 'miband-hack.authkey';
-const GB_KEY_GUIDE = 'https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/';
 
 // Static shell only — every value coming from the band or a file is set via textContent.
+// Translatable text is filled in by applyI18n() from data-i18n* attributes.
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div class="wrap">
   <header class="hero">
     <div class="brand">
       <div class="band-mark" aria-hidden="true"></div>
-      <h1>MiBand Hack<small>Cài app &amp; watchface cho Mi Band ngay trên trình duyệt — không cần cài phần mềm</small></h1>
+      <h1>MiBand Hack<small data-i18n="subtitle"></small></h1>
     </div>
     <div class="row">
-      <button class="small hidden" id="btn-install-app">Cài thành ứng dụng</button>
+      <button class="small hidden" id="btn-install-app" data-i18n="installApp"></button>
+      <div class="lang-switch" id="lang-switch" role="group" aria-label="Language"></div>
       <span class="tag">Mi Band 8 · 9 · 10 · Chrome / Edge</span>
     </div>
   </header>
@@ -29,96 +31,96 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
   <div class="grid">
     <section class="card" id="card-key">
-      <h2><span class="step">1</span>Auth key</h2>
-      <label for="authkey">Auth key của band (32 ký tự hex)</label>
+      <h2><span class="step">1</span><span data-i18n="keyTitle"></span></h2>
+      <label for="authkey" data-i18n="keyLabel"></label>
       <input id="authkey" type="password" placeholder="0x0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
-      <label class="check"><input type="checkbox" id="remember" /> Ghi nhớ trên trình duyệt này</label>
+      <label class="check"><input type="checkbox" id="remember" /> <span data-i18n="remember"></span></label>
 
-      <button class="primary" id="btn-qr" style="margin-top:14px;width:100%">Chưa có key? Lấy tự động bằng tài khoản Xiaomi</button>
+      <button class="primary" id="btn-qr" style="margin-top:14px;width:100%" data-i18n="qrBtn"></button>
       <div id="qr-panel" class="qr-panel hidden">
-        <div class="qr-box"><img id="qr-img" alt="Mã QR đăng nhập Xiaomi" /></div>
+        <div class="qr-box"><img id="qr-img" data-i18n-alt="qrAlt" /></div>
         <ol class="qr-steps">
-          <li>Dùng điện thoại <b>đã đăng nhập đúng tài khoản Xiaomi đang ghép với band</b> (ví dụ app Xiaomi Home / Mi Home) để quét mã.</li>
-          <li>Xác nhận đăng nhập trên điện thoại.</li>
-          <li>Đợi vài giây, key sẽ tự hiện ra bên dưới.</li>
+          <li data-i18n-html="qrStep1"></li>
+          <li data-i18n="qrStep2"></li>
+          <li data-i18n="qrStep3"></li>
         </ol>
-        <p class="hint">Không quét được? <a id="qr-link" target="_blank" rel="noopener">Mở trang đăng nhập của Xiaomi</a> trên điện thoại.</p>
+        <p class="hint" id="qr-noscan" data-i18n-html="qrNoScan"></p>
         <div class="row" style="margin-top:8px">
-          <label for="qr-server" style="margin:0;font-weight:400;color:var(--muted)">Khu vực tài khoản</label>
+          <label for="qr-server" style="margin:0;font-weight:400;color:var(--muted)" data-i18n="region"></label>
           <select id="qr-server">
-            <option value="">Tự dò</option>
-            <option value="sg">Singapore (Đông Nam Á)</option>
-            <option value="de">Châu Âu</option>
-            <option value="us">Mỹ</option>
-            <option value="cn">Trung Quốc</option>
-            <option value="i2">Ấn Độ (i2)</option>
-            <option value="in">Ấn Độ (in)</option>
-            <option value="ru">Nga</option>
-            <option value="tw">Đài Loan</option>
+            <option value="" data-i18n="regAuto"></option>
+            <option value="sg" data-i18n="regSg"></option>
+            <option value="de" data-i18n="regDe"></option>
+            <option value="us" data-i18n="regUs"></option>
+            <option value="cn" data-i18n="regCn"></option>
+            <option value="i2" data-i18n="regI2"></option>
+            <option value="in" data-i18n="regIn"></option>
+            <option value="ru" data-i18n="regRu"></option>
+            <option value="tw" data-i18n="regTw"></option>
           </select>
-          <button class="small ghost" id="btn-qr-cancel" style="margin-left:auto">Huỷ</button>
+          <button class="small ghost" id="btn-qr-cancel" style="margin-left:auto" data-i18n="cancel"></button>
         </div>
         <p class="progress-label" id="qr-status"></p>
       </div>
       <ul class="list hidden" id="cloud-devices" style="margin-top:10px"></ul>
-      <p class="hint">Phiên đăng nhập Xiaomi chỉ được dùng một lần để đọc key rồi bỏ đi. Server không lưu và không ghi log. Mật khẩu không bao giờ đi qua trang này.</p>
+      <p class="hint" data-i18n="privacyNote"></p>
 
       <details>
-        <summary>Cách khác để lấy auth key</summary>
-        <p>Auth key do Xiaomi cấp khi band được ghép với app Mi Fitness. Không có key thì không thiết bị nào khác nói chuyện được với band.</p>
+        <summary data-i18n="otherWays"></summary>
+        <p data-i18n="otherP1"></p>
         <ul>
-          <li>Xem hướng dẫn của Gadgetbridge (mục <em>Mi Fitness</em> và <em>Xiaomi Cloud Tokens Extractor</em>): <a href="${GB_KEY_GUIDE}" target="_blank" rel="noopener">gadgetbridge.org — server pairing</a>.</li>
-          <li>Nếu đang dùng Gadgetbridge với band này: key nằm trong cài đặt riêng của thiết bị.</li>
+          <li data-i18n-html="otherLi1"></li>
+          <li data-i18n="otherLi2"></li>
         </ul>
-        <p>Key chỉ được dùng trong trình duyệt của bạn, không gửi đi đâu cả.</p>
+        <p data-i18n="otherP2"></p>
       </details>
     </section>
 
     <section class="card" id="card-connect">
-      <h2><span class="step">2</span>Kết nối</h2>
+      <h2><span class="step">2</span><span data-i18n="connTitle"></span></h2>
       <div class="connect-opts">
-        <button class="connect-opt primary" id="btn-spp">Mi Band 9 / 10 / 9 Pro / 10 Pro<span style="color:inherit;opacity:.85">Bluetooth Classic (SPP) qua Web Serial</span></button>
-        <button class="connect-opt" id="btn-ble">Mi Band 8 / 9 Active và đời BLE khác<span>Bluetooth Low Energy qua Web Bluetooth</span></button>
-        <button class="ghost hidden" id="btn-disconnect">Ngắt kết nối</button>
+        <button class="connect-opt primary" id="btn-spp"><span data-i18n="sppBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="sppSub" style="color:inherit;opacity:.85"></span></button>
+        <button class="connect-opt" id="btn-ble"><span data-i18n="bleBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="bleSub"></span></button>
+        <button class="ghost hidden" id="btn-disconnect" data-i18n="disconnect"></button>
       </div>
       <details>
-        <summary>Trước khi bấm kết nối</summary>
+        <summary data-i18n="beforeConnect"></summary>
         <ol>
-          <li><b>Tắt Bluetooth trên điện thoại</b> (hoặc tắt Mi Fitness): mỗi lúc band chỉ nói chuyện với một thiết bị.</li>
-          <li><b>Mi Band 9/10:</b> ghép (pair) band trong phần cài đặt Bluetooth của máy tính trước, rồi chọn cổng <code>Bluetooth SPP</code> trong hộp thoại.</li>
-          <li><b>Linux:</b> bật <code>chrome://flags/#enable-experimental-web-platform-features</code> nếu không thấy thiết bị.</li>
+          <li data-i18n-html="before1"></li>
+          <li data-i18n-html="before2"></li>
+          <li data-i18n-html="before3"></li>
         </ol>
       </details>
     </section>
 
     <section class="card span-2 hidden" id="card-device">
-      <h2><span class="dot" id="dot"></span><span id="device-title">Thiết bị</span></h2>
+      <h2><span class="dot" id="dot"></span><span id="device-title"></span></h2>
       <div class="device">
-        <div class="stat"><b id="d-model">—</b><span>Model</span></div>
-        <div class="stat"><b id="d-fw">—</b><span>Firmware</span></div>
-        <div class="stat"><b id="d-batt">—</b><span>Pin</span></div>
-        <div class="stat"><b id="d-link">—</b><span>Giao thức</span></div>
+        <div class="stat"><b id="d-model">—</b><span data-i18n="model"></span></div>
+        <div class="stat"><b id="d-fw">—</b><span data-i18n="firmware"></span></div>
+        <div class="stat"><b id="d-batt">—</b><span data-i18n="battery"></span></div>
+        <div class="stat"><b id="d-link">—</b><span data-i18n="protocol"></span></div>
       </div>
     </section>
 
     <section class="card span-2" id="card-catalog">
-      <h2><span class="step">3</span>App mẫu: bấm Add để cài</h2>
-      <ul class="list catalog" id="catalog"><li class="empty">Đang tải danh sách…</li></ul>
-      <p class="hint" id="catalog-hint">Kết nối band ở bước 2 trước rồi bấm <b>Add</b>.</p>
+      <h2><span class="step">3</span><span data-i18n="catalogTitle"></span></h2>
+      <ul class="list catalog" id="catalog"><li class="empty" data-i18n="catalogLoading"></li></ul>
+      <p class="hint" id="catalog-hint" data-i18n-html="catalogHint"></p>
     </section>
 
     <section class="card span-2" id="card-install">
-      <h2><span class="step">4</span>Hoặc cài file của bạn</h2>
+      <h2><span class="step">4</span><span data-i18n="fileTitle"></span></h2>
       <div class="drop" id="drop" tabindex="0" role="button">
-        <strong>Kéo thả file vào đây</strong> hoặc bấm để chọn<br />
-        <small>.rpk (quick app) · .bin (watchface)</small>
+        <span data-i18n-html="dropMain"></span><br />
+        <small data-i18n="dropSub"></small>
       </div>
       <input type="file" id="file" accept=".rpk,.bin,.face,application/zip,application/octet-stream" class="hidden" />
       <div id="file-info" class="hidden">
         <div class="file">
           <div class="ph" id="f-icon">FILE</div>
           <div class="meta"><b id="f-name"></b><span id="f-sub"></span></div>
-          <button class="primary" id="btn-install" disabled>Cài lên band</button>
+          <button class="primary" id="btn-install" disabled data-i18n="install"></button>
         </div>
         <div class="progress hidden" id="progress"><div id="progress-bar"></div></div>
         <div class="progress-label" id="progress-label"></div>
@@ -126,26 +128,26 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="card">
-      <h2>App trên band <button class="small ghost" id="btn-refresh-apps" disabled style="margin-left:auto">Làm mới</button></h2>
-      <ul class="list" id="apps"><li class="empty">Chưa kết nối</li></ul>
+      <h2><span data-i18n="appsTitle"></span> <button class="small ghost" id="btn-refresh-apps" disabled style="margin-left:auto" data-i18n="refresh"></button></h2>
+      <ul class="list" id="apps"></ul>
     </section>
 
     <section class="card">
-      <h2>Watchface <button class="small ghost" id="btn-refresh-faces" disabled style="margin-left:auto">Làm mới</button></h2>
-      <ul class="list" id="faces"><li class="empty">Chưa kết nối</li></ul>
+      <h2><span data-i18n="facesTitle"></span> <button class="small ghost" id="btn-refresh-faces" disabled style="margin-left:auto" data-i18n="refresh"></button></h2>
+      <ul class="list" id="faces"></ul>
     </section>
 
     <section class="card span-2">
       <details open>
-        <summary>Nhật ký kết nối</summary>
+        <summary data-i18n="logTitle"></summary>
         <pre class="log" id="log"></pre>
       </details>
     </section>
   </div>
 
   <footer>
-    <p>Dự án độc lập, không liên kết với Xiaomi. Sideload app không chính thức có thể khiến band hoạt động bất thường — tự chịu rủi ro.</p>
-    <p>Giao thức port từ <a href="https://codeberg.org/Freeyourgadget/Gadgetbridge" target="_blank" rel="noopener">Gadgetbridge</a> · Giấy phép AGPL-3.0.</p>
+    <p data-i18n="footer1"></p>
+    <p data-i18n-html="footer2"></p>
   </footer>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -181,7 +183,7 @@ function fail(e: unknown): void {
   const msg = e instanceof Error ? e.message : String(e);
   // the user closing the device picker is not an error
   if (e instanceof DOMException && (e.name === 'NotFoundError' || e.name === 'AbortError')) {
-    log(`Đã huỷ chọn thiết bị`);
+    log(t('pickerCancelled'));
     return;
   }
   log(`✗ ${msg}`, 'e');
@@ -208,11 +210,13 @@ function renderSupport(): void {
   const serial = webSerialAvailable();
   const ble = webBluetoothAvailable();
   if (!window.isSecureContext) {
-    box.innerHTML = '<div class="banner err">Trang phải được mở qua <b>HTTPS</b> (hoặc localhost) thì trình duyệt mới cho dùng Bluetooth.</div>';
+    box.innerHTML = `<div class="banner err">${t('bannerHttps')}</div>`;
   } else if (!serial && !ble) {
-    box.innerHTML = '<div class="banner err">Trình duyệt này không hỗ trợ Web Serial / Web Bluetooth. Hãy mở bằng <b>Google Chrome</b> hoặc <b>Microsoft Edge</b> bản desktop (Safari và Firefox chưa hỗ trợ).</div>';
+    box.innerHTML = `<div class="banner err">${t('bannerNoBrowser')}</div>`;
   } else if (!serial) {
-    box.innerHTML = '<div class="banner warn">Trình duyệt chưa có Web Serial → không kết nối được Mi Band 9/10 (Bluetooth Classic). Dùng Chrome/Edge desktop bản 117 trở lên.</div>';
+    box.innerHTML = `<div class="banner warn">${t('bannerNoSerial')}</div>`;
+  } else {
+    box.replaceChildren();
   }
   $<HTMLButtonElement>('btn-spp').disabled = !serial;
   $<HTMLButtonElement>('btn-ble').disabled = !ble;
@@ -240,10 +244,10 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
   try {
     let link: Link;
     if (kind === 'spp') {
-      log('Chọn cổng "Bluetooth SPP" của band trong hộp thoại…');
+      log(t('pickSpp'));
       link = new StreamLink(await SerialTransport.request(), 'detect');
     } else {
-      log('Chọn band trong danh sách Bluetooth…');
+      log(t('pickBle'));
       const c = await requestBle();
       link = c.kind === 'v2' ? new StreamLink(c.transport, 'v2') : new BleV1Link(c.device, c.chars);
     }
@@ -251,14 +255,14 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
     dev.onLog = (m) => log(m, m.startsWith('✓') ? 'ok' : m.startsWith('⚠') ? 'e' : undefined);
     dev.onChange = () => render();
     dev.onDisconnect = () => {
-      log('Đã ngắt kết nối');
+      log(t('disconnected'));
       if (device === dev) device = null;
       render();
     };
     device = dev;
     render();
     await dev.connect();
-    toast('Đã kết nối band');
+    toast(t('connectedToast'));
   } catch (e) {
     fail(e);
     const d = device;
@@ -292,7 +296,7 @@ function render(): void {
 
   if (device) {
     const i = device.info;
-    $('device-title').textContent = connected ? 'Đã kết nối' : 'Đang kết nối…';
+    $('device-title').textContent = connected ? t('connected') : t('connecting');
     $('d-model').textContent = i.model ?? '—';
     $('d-fw').textContent = i.firmware ?? '—';
     $('d-batt').textContent = i.battery !== undefined ? `${i.battery}%` : '—';
@@ -335,14 +339,14 @@ function button(text: string, onClick: () => Promise<void>, disabled = false): H
 function renderApps(apps: InstalledApp[] | null): void {
   const ul = $('apps');
   ul.replaceChildren();
-  if (!apps) return void ul.appendChild(emptyItem('Chưa kết nối'));
-  if (apps.length === 0) return void ul.appendChild(emptyItem('Chưa có app bên thứ ba nào'));
+  if (!apps) return void ul.appendChild(emptyItem(t('notConnected')));
+  if (apps.length === 0) return void ul.appendChild(emptyItem(t('noApps')));
   for (const a of apps) {
     const li = document.createElement('li');
-    li.append(nameCell(a.name, a.id), button('Xoá', async () => {
-      if (!confirm(`Xoá "${a.name}" khỏi band?`)) return;
+    li.append(nameCell(a.name, a.id), button(t('del'), async () => {
+      if (!confirm(t('confirmDeleteApp', { name: a.name }))) return;
       await device!.deleteApp(a);
-      toast(`Đã xoá ${a.name}`);
+      toast(t('deleted', { name: a.name }));
     }));
     ul.appendChild(li);
   }
@@ -351,21 +355,21 @@ function renderApps(apps: InstalledApp[] | null): void {
 function renderFaces(faces: InstalledFace[] | null): void {
   const ul = $('faces');
   ul.replaceChildren();
-  if (!faces) return void ul.appendChild(emptyItem('Chưa kết nối'));
-  if (faces.length === 0) return void ul.appendChild(emptyItem('Không có watchface'));
+  if (!faces) return void ul.appendChild(emptyItem(t('notConnected')));
+  if (faces.length === 0) return void ul.appendChild(emptyItem(t('noFaces')));
   for (const f of faces) {
     const li = document.createElement('li');
     li.appendChild(nameCell(f.name, f.id));
     if (f.active) {
       const p = document.createElement('span');
       p.className = 'pill';
-      p.textContent = 'đang dùng';
+      p.textContent = t('active');
       li.appendChild(p);
     } else {
-      li.appendChild(button('Dùng', () => device!.setWatchface(f.id)));
+      li.appendChild(button(t('use'), () => device!.setWatchface(f.id)));
       if (f.canDelete) {
-        li.appendChild(button('Xoá', async () => {
-          if (!confirm(`Xoá watchface "${f.name}"?`)) return;
+        li.appendChild(button(t('del'), async () => {
+          if (!confirm(t('confirmDeleteFace', { name: f.name }))) return;
           await device!.deleteWatchface(f);
         }));
       }
@@ -423,9 +427,9 @@ async function install(): Promise<void> {
       const rate = secs > 0.5 ? ` · ${fmtSize((total * pct) / 100 / secs)}/s` : '';
       $('progress-label').textContent = `${stage} ${pct}%${pct < 100 ? rate : ''}`;
     });
-    $('progress-label').textContent = '✓ Cài xong';
-    log('✓ cài đặt hoàn tất', 'ok');
-    toast('Đã cài lên band');
+    $('progress-label').textContent = t('installDone');
+    log('✓ install complete', 'ok');
+    toast(t('installedToast'));
   } catch (e) {
     $('progress-label').textContent = `✗ ${(e as Error).message}`;
     fail(e);
@@ -471,7 +475,7 @@ drop.ondrop = (e) => {
 
 // ---------------------------------------------------------------- catalog ---
 
-interface CatalogApp { id: string; name: string; description: string; file: string; icon?: string; devices?: string[] }
+interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[] }
 
 let catalog: CatalogApp[] = [];
 let catalogBusy = false;
@@ -490,7 +494,7 @@ async function loadCatalog(): Promise<void> {
 function renderCatalog(): void {
   const ul = $('catalog');
   ul.replaceChildren();
-  if (catalog.length === 0) return void ul.appendChild(emptyItem('Chưa có app mẫu nào.'));
+  if (catalog.length === 0) return void ul.appendChild(emptyItem(t('catalogEmpty')));
   const connected = !!device?.connected;
   const installedIds = new Set(device?.apps.map((a) => a.id) ?? []);
   for (const app of catalog) {
@@ -500,9 +504,9 @@ function renderCatalog(): void {
     icon.alt = '';
     if (app.icon) icon.src = app.icon;
     icon.onerror = () => icon.replaceWith(Object.assign(document.createElement('div'), { className: 'catalog-icon', textContent: 'RPK' }));
-    const name = nameCell(app.name, `${app.description}${app.devices?.length ? ` · ${app.devices.join(', ')}` : ''}`);
+    const name = nameCell(app.name, `${pick(app.description)}${app.devices?.length ? ` · ${app.devices.join(', ')}` : ''}`);
     const installed = installedIds.has(app.id);
-    const btn = button(installed ? 'Cài lại' : 'Add', () => installFromCatalog(app), !connected || catalogBusy);
+    const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy);
     if (!installed) btn.classList.add('primary');
     li.append(icon, name, btn);
     ul.appendChild(li);
@@ -511,7 +515,7 @@ function renderCatalog(): void {
 }
 
 async function installFromCatalog(app: CatalogApp): Promise<void> {
-  if (!device?.connected) throw new Error('Chưa kết nối band');
+  if (!device?.connected) throw new Error(t('notConnected'));
   catalogBusy = true;
   renderCatalog();
   const label = $('progress-label');
@@ -520,19 +524,19 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
   $('f-name').textContent = app.name;
   $('f-sub').textContent = app.id;
   try {
-    label.textContent = 'Đang tải app…';
+    label.textContent = t('downloading');
     const r = await fetch(app.file);
-    if (!r.ok) throw new Error(`Không tải được ${app.file} (${r.status})`);
+    if (!r.ok) throw new Error(t('downloadFailed', { file: app.file, status: r.status }));
     const parsed = parseFile(new Uint8Array(await r.arrayBuffer()));
-    if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : 'File không phải .rpk');
+    if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : t('notRpk'));
     pending = parsed;
     await device.install(parsed, (pct, stage) => {
       $('progress-bar').style.width = `${pct}%`;
       label.textContent = `${stage} ${pct}%`;
     });
-    label.textContent = `✓ Đã cài ${app.name}`;
-    log(`✓ đã cài ${app.name}`, 'ok');
-    toast(`Đã cài ${app.name} lên band`);
+    label.textContent = `✓ ${t('installedApp', { name: app.name })}`;
+    log(`✓ installed ${app.name}`, 'ok');
+    toast(t('installedApp', { name: app.name }));
   } catch (e) {
     label.textContent = `✗ ${(e as Error).message}`;
     throw e;
@@ -547,6 +551,13 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
 interface CloudDevice { server: string; name: string; model: string; did: string; mac?: string; key?: string }
 
 let qrAbort: AbortController | null = null;
+let qrLoginUrl = '';
+
+// The link lives inside translated markup, so it is re-pointed after every language switch.
+function setQrLink(): void {
+  const a = document.getElementById('qr-link') as HTMLAnchorElement | null;
+  if (a && qrLoginUrl) a.href = qrLoginUrl;
+}
 
 function stopQr(): void {
   qrAbort?.abort();
@@ -558,7 +569,7 @@ function stopQr(): void {
 async function api<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
   const data = (await r.json().catch(() => ({}))) as T & { error?: string };
-  if (!r.ok) throw new Error(data.error || `Lỗi máy chủ (${r.status})`);
+  if (!r.ok) throw new Error(data.error || t('serverError', { status: r.status }));
   return data;
 }
 
@@ -570,12 +581,13 @@ async function startQr(): Promise<void> {
   $('qr-panel').classList.remove('hidden');
   $('cloud-devices').classList.add('hidden');
   const status = $('qr-status');
-  status.textContent = 'Đang tạo mã QR…';
+  status.textContent = t('qrCreating');
   try {
     const qr = await api<{ qr: string; loginUrl: string; lp: string; timeout: number }>('/api/xiaomi/qr', {}, ctl.signal);
     $<HTMLImageElement>('qr-img').src = qr.qr;
-    $<HTMLAnchorElement>('qr-link').href = qr.loginUrl;
-    status.textContent = 'Đang chờ quét mã…';
+    qrLoginUrl = qr.loginUrl;
+    setQrLink();
+    status.textContent = t('qrWaiting');
     const deadline = Date.now() + qr.timeout * 1000;
     while (Date.now() < deadline) {
       const server = $<HTMLSelectElement>('qr-server').value;
@@ -586,8 +598,8 @@ async function startQr(): Promise<void> {
         return;
       }
     }
-    status.textContent = 'Mã QR đã hết hạn.';
-    throw new Error('Mã QR hết hạn — bấm lại để tạo mã mới');
+    status.textContent = t('qrExpired');
+    throw new Error(t('qrExpiredErr'));
   } catch (e) {
     if (ctl.signal.aborted) return;
     stopQr();
@@ -602,21 +614,19 @@ function renderCloudDevices(devices: CloudDevice[]): void {
   const withKey = devices.filter((d) => d.key);
   const looksLikeBand = (d: CloudDevice) => /band|watch|wear|hlth/i.test(`${d.model} ${d.name}`);
   withKey.sort((a, b) => Number(looksLikeBand(b)) - Number(looksLikeBand(a)));
-  log(`Tài khoản có ${devices.length} thiết bị, ${withKey.length} thiết bị Bluetooth có key`);
+  log(`Account has ${devices.length} devices, ${withKey.length} Bluetooth devices with a key`);
   if (withKey.length === 0) {
-    ul.appendChild(emptyItem(devices.length
-      ? `Tìm thấy ${devices.length} thiết bị nhưng không có thiết bị Bluetooth nào có key. Band có thể chỉ được ghép trong Mi Fitness mà không hiện ở đây — dùng "Cách khác" bên dưới.`
-      : 'Không tìm thấy thiết bị nào. Thử chọn đúng khu vực tài khoản rồi quét lại.'));
+    ul.appendChild(emptyItem(devices.length ? t('cloudNoKey', { n: devices.length }) : t('cloudNone')));
     return;
   }
   for (const d of withKey) {
     const li = document.createElement('li');
     const valid = /^[0-9a-f]{32}$/i.test(d.key!);
-    const sub = `${d.model} · ${d.mac ?? d.did} · ${d.server}${valid ? '' : ` · ⚠ key ${d.key!.length} ký tự, có thể không dùng được cho band`}`;
-    li.append(nameCell(d.name || d.model, sub), button('Dùng key này', async () => {
+    const sub = `${d.model} · ${d.mac ?? d.did} · ${d.server}${valid ? '' : ` · ${t('keyWarn', { n: d.key!.length })}`}`;
+    li.append(nameCell(d.name || d.model, sub), button(t('useKey'), async () => {
       $<HTMLInputElement>('authkey').value = d.key!;
-      toast(`Đã điền key của ${d.name || d.model}`);
-      log(`Đã điền key của ${d.name || d.model} (${d.model})`, 'ok');
+      toast(t('keyFilled', { name: d.name || d.model }));
+      log(`Filled in key of ${d.name || d.model} (${d.model})`, 'ok');
     }));
     ul.appendChild(li);
   }
@@ -642,7 +652,33 @@ $('btn-install-app').onclick = async () => {
   $('btn-install-app').classList.add('hidden');
 };
 
-renderSupport();
-render();
+// ---------------------------------------------------------------- language ---
+
+function renderLangSwitch(): void {
+  const box = $('lang-switch');
+  box.replaceChildren(
+    ...LANGS.map(({ code, label }) => {
+      const b = document.createElement('button');
+      b.className = `small${code === getLang() ? ' on' : ''}`;
+      b.textContent = label;
+      b.setAttribute('aria-pressed', String(code === getLang()));
+      b.onclick = () => {
+        setLang(code);
+        localize();
+      };
+      return b;
+    }),
+  );
+}
+
+function localize(): void {
+  applyI18n();
+  setQrLink();
+  renderLangSwitch();
+  renderSupport();
+  render();
+}
+
+localize();
 void loadCatalog();
-log('Sẵn sàng. Nhập auth key rồi bấm kết nối.');
+log(t('ready'));
