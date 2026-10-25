@@ -45,6 +45,7 @@ MiBand Hack lấp chỗ trống đó: mở một trang web là cài được.
 | Drawing | Vẽ bằng tay: 5 màu, 3 cỡ bút, tẩy, hoàn tác, tự lưu | `demo-apps/drawing` |
 | Notes | Hiện note của người dùng (chỉ xem). Note soạn trên webapp, trình duyệt **đóng gói lại và ký lại `.rpk`** rồi cài | `demo-apps/notes` + `src/rpk/` |
 | Snake | Game rắn săn mồi: vuốt hoặc chạm nửa trái/phải để rẽ, nhanh dần, lưu điểm cao nhất | `demo-apps/snake` |
+| SAT Flashcards | Học 372 từ vựng SAT: lật thẻ, Know it / Again, ôn lặp ngắt quãng (hộp Leitner), tiến độ lưu trên band | `demo-apps/sat-flashcards` |
 
 Cả bốn build bằng `aiot-toolkit` 2.0.5 (toolchain chính thức của Xiaomi Vela). **Chưa app nào được chạy thử trên band thật.**
 
