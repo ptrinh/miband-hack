@@ -71,9 +71,25 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <ul class="list hidden" id="cloud-devices" style="margin-top:10px"></ul>
       <p class="hint" data-i18n="privacyNote"></p>
 
-      <details>
+      <details id="other-ways">
         <summary data-i18n="otherWays"></summary>
         <p data-i18n="otherP1"></p>
+        <h4 data-i18n="iosTitle"></h4>
+        <ol>
+          <li data-i18n-html="iosStep1"></li>
+          <li data-i18n-html="iosStep2"></li>
+          <li data-i18n-html="iosStep3"></li>
+        </ol>
+        <label for="mf-files" data-i18n="iosPick"></label>
+        <input type="file" id="mf-files" accept=".zip,.sqlite,.sqlite-wal,application/zip" multiple />
+        <ul class="list hidden" id="mf-keys" style="margin-top:10px"></ul>
+        <p class="hint" data-i18n="iosPrivacy"></p>
+        <h4 data-i18n="androidTitle"></h4>
+        <ol>
+          <li data-i18n-html="androidStep1"></li>
+          <li data-i18n-html="androidStep2"></li>
+          <li data-i18n-html="androidStep3"></li>
+        </ol>
         <ul>
           <li data-i18n-html="otherLi1"></li>
           <li data-i18n="otherLi2"></li>
@@ -798,7 +814,24 @@ $('btn-note-add').onclick = () => {
 
 // ------------------------------------------------------- key from cloud ---
 
-interface CloudDevice { server: string; name: string; model: string; did: string; mac?: string; key?: string }
+interface CloudDevice { server: string; source?: 'mifitness' | 'mihome'; keyField?: string; name: string; model: string; did: string; mac?: string; key?: string }
+interface PollResult { status: string; devices?: CloudDevice[]; fitness?: { ok: boolean }; mihome?: { ok: boolean | null } }
+
+interface KeyRow { title: string; sub: string; key: string }
+
+/** One "Use this key" row per key; band/cloud values only ever go through textContent. */
+function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
+  for (const r of rows) {
+    const li = document.createElement('li');
+    const valid = /^[0-9a-f]{32}$/i.test(r.key);
+    li.append(nameCell(r.title, `${r.sub}${valid ? '' : ` · ${t('keyWarn', { n: r.key.length })}`}`), button(t('useKey'), async () => {
+      $<HTMLInputElement>('authkey').value = r.key;
+      toast(t('keyFilled', { name: r.title }));
+      log(`Filled in key of ${r.title}`, 'ok');
+    }));
+    ul.appendChild(li);
+  }
+}
 
 let qrAbort: AbortController | null = null;
 let qrLoginUrl = '';
@@ -841,10 +874,10 @@ async function startQr(): Promise<void> {
     const deadline = Date.now() + qr.timeout * 1000;
     while (Date.now() < deadline) {
       const server = $<HTMLSelectElement>('qr-server').value;
-      const res = await api<{ status: string; devices?: CloudDevice[] }>('/api/xiaomi/poll', { lp: qr.lp, server }, ctl.signal);
+      const res = await api<PollResult>('/api/xiaomi/poll', { lp: qr.lp, server }, ctl.signal);
       if (res.status === 'ok') {
         stopQr();
-        renderCloudDevices(res.devices ?? []);
+        renderCloudDevices(res);
         return;
       }
     }
@@ -857,30 +890,84 @@ async function startQr(): Promise<void> {
   }
 }
 
-function renderCloudDevices(devices: CloudDevice[]): void {
+function renderCloudDevices(res: PollResult): void {
+  const devices = res.devices ?? [];
   const ul = $('cloud-devices');
   ul.replaceChildren();
   ul.classList.remove('hidden');
+  const fitness = devices.filter((d) => d.source === 'mifitness');
   const withKey = devices.filter((d) => d.key);
   const looksLikeBand = (d: CloudDevice) => /band|watch|wear|hlth/i.test(`${d.model} ${d.name}`);
-  withKey.sort((a, b) => Number(looksLikeBand(b)) - Number(looksLikeBand(a)));
-  log(`Account has ${devices.length} devices, ${withKey.length} Bluetooth devices with a key`);
-  if (withKey.length === 0) {
-    ul.appendChild(emptyItem(devices.length ? t('cloudNoKey', { n: devices.length }) : t('cloudNone')));
+  withKey.sort((a, b) => Number(b.source === 'mifitness') - Number(a.source === 'mifitness') || Number(looksLikeBand(b)) - Number(looksLikeBand(a)));
+  log(
+    `Mi Fitness: ${res.fitness?.ok ? `${fitness.length} devices` : 'not readable'}; ` +
+      `Mi Home: ${res.mihome?.ok === null ? 'skipped' : res.mihome?.ok ? `${devices.length - fitness.length} devices` : 'not readable'}; ` +
+      `${withKey.length} keys`,
+  );
+  if (withKey.length) {
+    // Several keys for one band (e.g. encrypt_key and token differ): label which field each is.
+    const perDevice = new Map<string, number>();
+    for (const d of withKey) perDevice.set(`${d.source}:${d.did}`, (perDevice.get(`${d.source}:${d.did}`) ?? 0) + 1);
+    renderKeyRows(
+      ul,
+      withKey.map((d) => ({
+        title: d.name || d.model,
+        sub: [
+          d.source === 'mifitness' ? 'Mi Fitness' : 'Mi Home',
+          d.model,
+          d.mac ?? d.did,
+          (perDevice.get(`${d.source}:${d.did}`) ?? 0) > 1 && d.keyField ? t('keyFromField', { field: d.keyField }) : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        key: d.key!,
+      })),
+    );
     return;
   }
-  for (const d of withKey) {
-    const li = document.createElement('li');
-    const valid = /^[0-9a-f]{32}$/i.test(d.key!);
-    const sub = `${d.model} · ${d.mac ?? d.did} · ${d.server}${valid ? '' : ` · ${t('keyWarn', { n: d.key!.length })}`}`;
-    li.append(nameCell(d.name || d.model, sub), button(t('useKey'), async () => {
-      $<HTMLInputElement>('authkey').value = d.key!;
-      toast(t('keyFilled', { name: d.name || d.model }));
-      log(`Filled in key of ${d.name || d.model} (${d.model})`, 'ok');
-    }));
-    ul.appendChild(li);
-  }
+  // No key: say what was checked, then point to the fallbacks.
+  if (!res.fitness?.ok) ul.appendChild(emptyItem(t('cloudFitnessFail')));
+  else if (fitness.length) ul.appendChild(emptyItem(t('cloudFitnessNoKey', { n: fitness.length })));
+  else ul.appendChild(emptyItem(t('cloudFitnessEmpty')));
+  const home = devices.length - fitness.length;
+  if (home) ul.appendChild(emptyItem(t('cloudNoKey', { n: home })));
+  ul.appendChild(emptyItem(t('cloudFallback')));
+  ($('other-ways') as HTMLDetailsElement).open = true;
 }
+
+// ------------------------------------------------- key from Mi Fitness files ---
+
+$<HTMLInputElement>('mf-files').onchange = async (ev) => {
+  const input = ev.target as HTMLInputElement;
+  const ul = $('mf-keys');
+  ul.replaceChildren();
+  ul.classList.remove('hidden');
+  try {
+    const { keysFromFiles, keysFromZip } = await import('./core/mifitness-files');
+    const picked = [...(input.files ?? [])];
+    const keys = [];
+    const loose: Record<string, Uint8Array> = {};
+    for (const f of picked) {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      if (/\.zip$/i.test(f.name) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) keys.push(...keysFromZip(bytes));
+      else loose[f.name] = bytes;
+    }
+    keys.push(...keysFromFiles(loose));
+    log(`Mi Fitness folder: ${keys.length} keys found`);
+    if (!keys.length) {
+      ul.appendChild(emptyItem(t('iosNone')));
+      return;
+    }
+    renderKeyRows(
+      ul,
+      keys.map((k) => ({ title: k.name || k.model || 'Mi Fitness', sub: ['Mi Fitness', k.model, k.mac ?? k.did].filter(Boolean).join(' · '), key: k.key })),
+    );
+  } catch (e) {
+    ul.appendChild(emptyItem(t('iosError', { msg: (e as Error).message })));
+  } finally {
+    input.value = '';
+  }
+};
 
 $('btn-qr').onclick = () => void startQr();
 $('btn-qr-cancel').onclick = () => stopQr();

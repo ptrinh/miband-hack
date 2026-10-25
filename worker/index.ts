@@ -1,11 +1,13 @@
-import { isXiaomiLongPollUrl, listDevices, pollQrLogin, SERVERS, startQrLogin } from './xiaomi-cloud';
+import { healthSession, isXiaomiLongPollUrl, listDevices, listFitnessDevices, pollQrLogin, SERVERS, ssoSession, startQrLogin } from './xiaomi-cloud';
 
 interface Env {
   ASSETS: Fetcher;
 }
 
-// Workers free plan allows 50 subrequests per invocation; keep headroom for the login calls.
-const SUBREQUEST_BUDGET = 44;
+// Workers free plan allows 50 subrequests per invocation. Login: long-poll + STS (2), Mi Fitness
+// up to 4, Mi Home SSO 2; the rest is for Mi Home device listing.
+const FITNESS_BUDGET = 4;
+const MIHOME_BUDGET = 38;
 const POLL_WAIT_MS = 20_000;
 
 const json = (body: unknown, status = 200): Response =>
@@ -33,12 +35,30 @@ async function handleApi(req: Request, url: URL): Promise<Response> {
   if (url.pathname === '/api/xiaomi/poll' && req.method === 'POST') {
     const body = (await req.json().catch(() => ({}))) as { lp?: string; server?: string };
     if (!body.lp || !isXiaomiLongPollUrl(body.lp)) return json({ error: 'invalid lp' }, 400);
-    const servers = body.server && (SERVERS as readonly string[]).includes(body.server) ? [body.server] : SERVERS;
+    // Only known region codes: the value becomes part of a hostname that receives the session.
+    const server = body.server && (SERVERS as readonly string[]).includes(body.server) ? body.server : undefined;
+    const servers = server ? [server] : SERVERS;
 
-    const session = await pollQrLogin(body.lp, POLL_WAIT_MS);
-    if (!session) return json({ status: 'pending' });
-    const devices = await listDevices(session, servers, SUBREQUEST_BUDGET);
-    return json({ status: 'ok', devices });
+    const login = await pollQrLogin(body.lp, POLL_WAIT_MS);
+    if (!login) return json({ status: 'pending' });
+
+    // 1. Mi Fitness (bands 7 Pro / 8 / 9 / 10, watches): the QR logged in to this service.
+    const fitness = await healthSession(login)
+      .then((s) => listFitnessDevices(s, server, FITNESS_BUDGET))
+      .catch(() => ({ ok: false, devices: [] }));
+    if (fitness.devices.some((d) => d.key)) return json({ status: 'ok', fitness: { ok: true }, mihome: { ok: null }, devices: fitness.devices });
+
+    // 2. Mi Home Bluetooth devices, reached with the same login (passToken SSO, no second scan).
+    let mihome: { ok: boolean | null } = { ok: null };
+    let homeDevices: Awaited<ReturnType<typeof listDevices>> = [];
+    const home = await ssoSession(login, 'xiaomiio').catch(() => null);
+    if (home) {
+      homeDevices = await listDevices(home, servers, MIHOME_BUDGET).catch(() => []);
+      mihome = { ok: true };
+    } else {
+      mihome = { ok: false };
+    }
+    return json({ status: 'ok', fitness: { ok: fitness.ok }, mihome, devices: [...fitness.devices, ...homeDevices] });
   }
 
   return json({ error: 'not found' }, 404);

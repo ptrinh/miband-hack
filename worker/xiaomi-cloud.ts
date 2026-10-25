@@ -1,12 +1,22 @@
-// Xiaomi account QR login + device key lookup, ported from
-// PiotrMachowski/Xiaomi-cloud-tokens-extractor (MIT). Runs inside the Worker so the session
-// (ssecurity / serviceToken) never reaches the browser and is never stored.
+// Xiaomi account QR login + device key lookup. Runs inside the Worker so the session
+// (ssecurity / serviceToken / passToken) never reaches the browser and is never stored.
+//
+// - QR login and the Mi Home (xiaomiio) calls are ported from
+//   PiotrMachowski/Xiaomi-cloud-tokens-extractor (MIT).
+// - The Mi Fitness (sid "miothealth") QR login and POST /app/v1/source/get_source_list follow
+//   lzghzr/ha_miband cloud.py (Apache-2.0), cross-checked with AstralSightStudios/AstroBox
+//   (AGPL-3.0, reads detail.encrypt_key as the auth key) and argrento/huami-token (MIT,
+//   detail.auth_key, continuous-RC4 request variant).
 
 export const SERVERS = ['sg', 'de', 'us', 'cn', 'i2', 'ru', 'tw', 'in'] as const;
 export type Server = (typeof SERVERS)[number];
 
 export interface CloudDevice {
   server: string;
+  /** Which app's cloud the device came from. */
+  source?: 'mifitness' | 'mihome';
+  /** Field of the Mi Fitness record the key came from (encrypt_key, auth_key, token…). */
+  keyField?: string;
   name: string;
   model: string;
   did: string;
@@ -70,13 +80,18 @@ export interface QrStart {
   timeout: number;
 }
 
+/** Mi Fitness service id and its STS callback (as returned by serviceLogin?sid=miothealth). */
+export const HEALTH_SID = 'miothealth';
+const HEALTH_CALLBACK = 'https://sts-hlth.io.mi.com/healthapp/sts';
+
+/** The QR logs in to Mi Fitness; Mi Home (xiaomiio) is reached afterwards with the passToken. */
 export async function startQrLogin(): Promise<QrStart> {
   const params = new URLSearchParams({
     _qrsize: '480',
-    qs: '%3Fsid%3Dxiaomiio%26_json%3Dtrue',
-    callback: 'https://sts.api.io.mi.com/sts',
+    qs: `%3Fsid%3D${HEALTH_SID}%26_json%3Dtrue`,
+    callback: HEALTH_CALLBACK,
     _hasLogo: 'false',
-    sid: 'xiaomiio',
+    sid: HEALTH_SID,
     serviceParam: '',
     _locale: 'en_GB',
     _dc: String(Date.now()),
@@ -100,8 +115,18 @@ export function isXiaomiLongPollUrl(u: string): boolean {
   }
 }
 
+/** What the long-poll returns once the QR is confirmed (never leaves the Worker). */
+export interface QrLogin {
+  userId: string;
+  cUserId: string;
+  ssecurity: string;
+  passToken: string;
+  location: string;
+  nonce?: string;
+}
+
 /** Waits up to `waitMs` for the QR to be scanned. Returns null while still pending. */
-export async function pollQrLogin(lp: string, waitMs: number): Promise<Session | null> {
+export async function pollQrLogin(lp: string, waitMs: number): Promise<QrLogin | null> {
   let r: Response;
   try {
     r = await fetch(lp, { signal: AbortSignal.timeout(waitMs) });
@@ -112,13 +137,56 @@ export async function pollQrLogin(lp: string, waitMs: number): Promise<Session |
   if (r.status !== 200) return null;
   const d = toJson(await r.text());
   if (!d.ssecurity || !d.location) throw new Error('Xiaomi login failed');
-
-  const loc = await fetch(String(d.location), { redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-  const cookie = loc.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
-  if (!cookie) throw new Error('Could not get a service token from Xiaomi');
-  return new Session(String(d.userId), String(d.ssecurity), cookie);
+  return {
+    userId: String(d.userId ?? ''),
+    cUserId: String(d.cUserId ?? ''),
+    ssecurity: String(d.ssecurity),
+    passToken: String(d.passToken ?? ''),
+    location: String(d.location),
+    nonce: d.nonce == null ? undefined : String(d.nonce),
+  };
 }
 
+/** clientSign = base64(SHA1("nonce=<nonce>&<ssecurity>")), appended to the STS location. */
+export async function clientSign(nonce: string, ssecurity: string): Promise<string> {
+  return b64(await digest('SHA-1', enc.encode(`nonce=${nonce}&${ssecurity}`)));
+}
+
+/** Follows the STS location and returns the serviceToken cookie it sets. */
+async function fetchServiceToken(location: string, ssecurity: string, nonce?: string): Promise<string> {
+  let url = location;
+  if (nonce && !/[?&]clientSign=/.test(url)) url += `${url.includes('?') ? '&' : '?'}clientSign=${encodeURIComponent(await clientSign(nonce, ssecurity))}`;
+  const loc = await fetch(url, { redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  const cookie = loc.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
+  if (!cookie) throw new Error('Could not get a service token from Xiaomi');
+  return cookie;
+}
+
+/** The Mi Fitness session from the QR login (2 subrequests were spent: long-poll + STS). */
+export async function healthSession(login: QrLogin): Promise<Session> {
+  const token = await fetchServiceToken(login.location, login.ssecurity, login.nonce);
+  return new Session(login.userId, login.ssecurity, token, login.cUserId);
+}
+
+/**
+ * Single sign-on to another service (e.g. Mi Home's "xiaomiio") with the passToken from the
+ * QR login, without another scan. Returns null if Xiaomi asks for a fresh login.
+ */
+export async function ssoSession(login: QrLogin, sid: string): Promise<Session | null> {
+  if (!login.passToken) return null;
+  const r = await fetch(`https://account.xiaomi.com/pass/serviceLogin?sid=${encodeURIComponent(sid)}&_json=true`, {
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      Cookie: `userId=${login.userId}; cUserId=${login.cUserId}; passToken=${login.passToken}`,
+    },
+  });
+  if (!r.ok) return null;
+  const d = toJson(await r.text());
+  if (!d.ssecurity || !d.location) return null;
+  const ssecurity = String(d.ssecurity);
+  const token = await fetchServiceToken(String(d.location), ssecurity, d.nonce == null ? undefined : String(d.nonce));
+  return new Session(String(d.userId ?? login.userId), ssecurity, token, String(d.cUserId ?? login.cUserId));
+}
 
 export async function signedNonce(ssecurity: string, nonce: string): Promise<string> {
   const a = unb64(ssecurity);
@@ -153,6 +221,27 @@ export async function buildEncryptedParams(path: string, data: string, ssecurity
   return encrypted;
 }
 
+export type HealthVariant = 'mihome' | 'stream';
+
+/** Continuous RC4 stream over the sorted params, signature over sorted keys (huami-token mi_encrypt_params). */
+export async function buildStreamParams(path: string, plain: Record<string, string>, ssecurity: string, nonce: string): Promise<[string, string][]> {
+  const signed = await signedNonce(ssecurity, nonce);
+  const sorted = (o: Record<string, string>): [string, string][] => Object.keys(o).sort().map((k) => [k, o[k]]);
+  const withHash = { ...plain, rc4_hash__: await encSignature(path, signed, sorted(plain)) };
+  const keys = Object.keys(withHash).sort();
+  const stream = rc4(unb64(signed), enc.encode(keys.map((k) => withHash[k as keyof typeof withHash]).join('')));
+  const out: Record<string, string> = {};
+  let at = 0;
+  for (const k of keys) {
+    const len = enc.encode(withHash[k as keyof typeof withHash]).length;
+    out[k] = b64(stream.subarray(at, at + len));
+    at += len;
+  }
+  const params = sorted(out);
+  params.push(['signature', await encSignature(path, signed, params)], ['_nonce', nonce]);
+  return params;
+}
+
 export async function decryptResponse(ssecurity: string, nonce: string, body: string): Promise<string> {
   const key = unb64(await signedNonce(ssecurity, nonce));
   return new TextDecoder().decode(rc4(key, unb64(body)));
@@ -164,7 +253,48 @@ export class Session {
   private readonly agent = `${randomChars(18, 97, 122)}-${randomChars(13, 65, 69)} APP/com.xiaomi.mihome APPV/10.5.201`;
   subrequests = 0;
 
-  constructor(readonly userId: string, private readonly ssecurity: string, private readonly serviceToken: string) {}
+  constructor(
+    readonly userId: string,
+    private readonly ssecurity: string,
+    private readonly serviceToken: string,
+    private readonly cUserId = '',
+  ) {}
+
+  /**
+   * Mi Fitness API call, e.g. path /app/v1/source/get_source_list on hlth.io.mi.com.
+   * - 'mihome': Mi Home-style encryption, params in the query (ha_miband).
+   * - 'stream': one RC4 stream over the sorted params, form body (huami-token, AstroBox).
+   * Returns null on an HTTP error or an undecryptable body.
+   */
+  async callHealth(host: string, path: string, data: unknown, variant: HealthVariant): Promise<Record<string, unknown> | null> {
+    const nonce = makeNonce();
+    const json = JSON.stringify(data);
+    const params =
+      variant === 'mihome' ? await buildEncryptedParams(path, json, this.ssecurity, nonce) : await buildStreamParams(path, { data: json }, this.ssecurity, nonce);
+    const query = new URLSearchParams(params);
+    const cookies =
+      variant === 'mihome'
+        ? [`userId=${this.userId}`, `cUserId=${this.cUserId}`, `yetAnotherServiceToken=${this.serviceToken}`, `serviceToken=${this.serviceToken}`, 'locale=en_GB', 'channel=MI_APP_STORE']
+        : [`cUserId=${this.cUserId}`, `serviceToken=${this.serviceToken}`, 'locale=en_us'];
+    this.subrequests++;
+    const r = await fetch(variant === 'mihome' ? `https://${host}${path}?${query}` : `https://${host}${path}`, {
+      method: 'POST',
+      headers: {
+        'Accept-Encoding': 'identity',
+        'User-Agent': variant === 'mihome' ? this.agent : 'Android-12-9.8.348i-google-Pixel 4',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(variant === 'mihome' ? { 'MIOT-ENCRYPT-ALGORITHM': 'ENCRYPT-RC4' } : { region_tag: 'ru' }),
+        Cookie: cookies.join('; '),
+      },
+      body: variant === 'mihome' ? undefined : query.toString(),
+    });
+    if (!r.ok) return null;
+    try {
+      return JSON.parse(await decryptResponse(this.ssecurity, nonce, (await r.text()).trim().replace(/^"|"$/g, '')));
+    } catch {
+      return null;
+    }
+  }
 
   async call(server: string, path: string, data: unknown): Promise<Record<string, unknown> | null> {
     const host = server === 'cn' ? 'api.io.mi.com' : `${server}.api.io.mi.com`;
@@ -221,7 +351,7 @@ export async function listDevices(s: Session, servers: readonly string[], budget
       })) as Json | null;
       for (const dev of d?.result?.device_info ?? []) {
         const did = String(dev.did ?? '');
-        const item: CloudDevice = { server, name: String(dev.name ?? ''), model: String(dev.model ?? ''), did, mac: dev.mac };
+        const item: CloudDevice = { server, source: 'mihome', name: String(dev.name ?? ''), model: String(dev.model ?? ''), did, mac: dev.mac };
         if (did.includes('blt') && s.subrequests + 1 <= budget) {
           const k = (await s.call(server, '/v2/device/blt_get_beaconkey', { did, pdid: 1 })) as Json | null;
           if (typeof k?.result?.beaconkey === 'string') item.key = k.result.beaconkey;
@@ -231,4 +361,74 @@ export async function listDevices(s: Session, servers: readonly string[], budget
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------- Mi Fitness ---
+
+export const HEALTH_PATH = '/app/v1/source/get_source_list';
+/** Regional Mi Fitness hosts (ha_miband); the base host is tried first (huami-token). */
+export const healthHost = (server?: string): string =>
+  !server || server === 'cn' || !(SERVERS as readonly string[]).includes(server) ? 'hlth.io.mi.com' : `${server}.hlth.io.mi.com`;
+
+/** Fields that have been seen holding the band's 16-byte auth key, most trusted first. */
+const KEY_FIELDS = ['encrypt_key', 'encryptKey', 'auth_key', 'authKey', 'token'] as const;
+
+/** Turns a get_source_list response into one row per distinct 32-hex key candidate. */
+export function parseSourceList(res: Json | null, server: string): CloudDevice[] {
+  const out: CloudDevice[] = [];
+  for (const src of res?.result?.list ?? []) {
+    let detail: Json = src?.detail ?? {};
+    if (typeof detail === 'string') {
+      try {
+        detail = JSON.parse(detail);
+      } catch {
+        detail = {};
+      }
+    }
+    const base = {
+      server,
+      source: 'mifitness' as const,
+      name: String(src?.name ?? '').trim(),
+      model: String(src?.model ?? ''),
+      did: String(src?.identifier ?? src?.did ?? ''),
+      mac: typeof detail.mac === 'string' ? detail.mac : typeof src?.mac === 'string' ? src.mac : undefined,
+    };
+    const seen = new Set<string>();
+    for (const field of KEY_FIELDS) {
+      const raw = detail[field];
+      if (typeof raw !== 'string') continue;
+      const key = raw.trim().toLowerCase().replace(/^0x/, '');
+      if (!/^[0-9a-f]{32}$/.test(key) || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...base, key, keyField: field });
+    }
+    if (!seen.size) out.push(base);
+  }
+  return out;
+}
+
+export interface FitnessResult {
+  /** true once Xiaomi answered with code 0 on some host. */
+  ok: boolean;
+  devices: CloudDevice[];
+}
+
+/** Lists the account's Mi Fitness devices (bands, watches) with their auth keys. */
+export async function listFitnessDevices(s: Session, server: string | undefined, budget: number): Promise<FitnessResult> {
+  const hosts = [healthHost()];
+  if (server && healthHost(server) !== hosts[0]) hosts.push(healthHost(server));
+  const variants: HealthVariant[] = ['mihome', 'stream'];
+  let ok = false;
+  for (const host of hosts) {
+    for (const variant of variants) {
+      if (s.subrequests + 1 > budget) return { ok, devices: [] };
+      const res = (await s.callHealth(host, HEALTH_PATH, { page_size: 50, status: 1 }, variant)) as Json | null;
+      if (res?.code !== 0) continue;
+      ok = true;
+      const devices = parseSourceList(res, host);
+      if (devices.length) return { ok, devices };
+      break; // this host answered; an empty list will not change with the other variant
+    }
+  }
+  return { ok, devices: [] };
 }

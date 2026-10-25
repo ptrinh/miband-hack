@@ -32,7 +32,7 @@ MiBand Hack fills that gap: open a web page and install.
 
 ## Usage
 
-1. **Get the auth key**: press *"Get it automatically with your Xiaomi account"*, then scan the QR code with a phone signed in to Xiaomi. If no key comes out, see the [Gadgetbridge guide](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/).
+1. **Get the auth key**: press *"Get it automatically with your Xiaomi account"*, then scan the QR code with a phone signed in to Xiaomi. If no key comes out, use *Other ways* on the page (iPhone/iPad: the Mi Fitness folder; Android: the Mi Fitness log), see [docs/GUIDE.md](docs/GUIDE.md).
 2. **Turn off Bluetooth on your phone** so the band is free to connect.
 3. Mi Band 9/10: **pair the band** in the OS Bluetooth settings first.
 4. Open the webapp → enter the key → **Connect** → drag and drop a `.rpk` file → **Install to band**.
@@ -60,12 +60,21 @@ All catalog apps are built with `aiot-toolkit` 2.0.5 (Xiaomi Vela's official too
 
 ## Getting the key via QR: how it works
 
-`worker/xiaomi-cloud.ts` is a port of the QR login flow from [Xiaomi Cloud Tokens Extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) (MIT):
-`/api/xiaomi/qr` creates the QR code, then `/api/xiaomi/poll` long-polls until the user scans it, gets the service token, lists devices and calls `blt_get_beaconkey`.
-The login session (`ssecurity`/`serviceToken`) only lives within a single Worker request: it is not returned to the browser, not stored, and observability is off.
+`worker/xiaomi-cloud.ts` does a Xiaomi QR login for the **Mi Fitness** service (`sid=miothealth`, callback `https://sts-hlth.io.mi.com/healthapp/sts`):
+`/api/xiaomi/qr` creates the QR code, then `/api/xiaomi/poll` long-polls until the user scans it and then:
+
+1. **Mi Fitness**: gets the service token and calls `POST https://hlth.io.mi.com/app/v1/source/get_source_list` with `data={"page_size":50,"status":1}` (then the regional `<region>.hlth.io.mi.com` if a region is picked). The bound bands come back with `detail.encrypt_key` / `detail.auth_key` (and sometimes `detail.token`); every distinct 32-hex value is offered. Two request encodings are tried: the Mi Home one (params in the query, used by [ha_miband](https://github.com/lzghzr/ha_miband), Apache-2.0) and a single RC4 stream over sorted params in the body ([huami-token](https://codeberg.org/argrento/huami-token), MIT; [AstroBox](https://github.com/AstralSightStudios/AstroBox-Public), AGPL-3.0).
+2. **Mi Home** (only if no Mi Fitness key was found): signs in to `sid=xiaomiio` with the `passToken` of the same login (no second scan), lists devices and calls `blt_get_beaconkey`, as in [Xiaomi Cloud Tokens Extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) (MIT).
+
+The login session (`ssecurity`/`serviceToken`/`passToken`) only lives within a single Worker request: it is not returned to the browser, not stored, and observability is off.
 A proxy is needed because Xiaomi's API does not let browsers call it directly (CORS is blocked).
 
-> **Unverified:** whether the key from the Mi Home cloud really is the Mi Band's auth key (beaconkeys of BLE sensors are usually only 24 hex long). The UI warns if the key is not 32 hex.
+> **Unverified here:** the Mi Fitness route follows three independent open-source clients and Xiaomi's servers accept the `miothealth` QR login, but this project has not yet run it against a real account with a band. The Mi Home route rarely helps for Mi Band 8/9/10, which are not Mi Home devices.
+
+**Fallbacks that need no cloud call** (also in the page under *Other ways* and in [docs/GUIDE.md](docs/GUIDE.md)):
+
+- **iPhone / iPad**: Files → On My iPhone/iPad → *Mi Fitness* → Compress, then pick the zip in the page. `src/core/mifitness-files.ts` reads `MHWCahe/<uid>/VirtualDevice_registerList/manifest.sqlite` (+ `-wal`) in the browser: a small SQLite reader, a binary-plist reader and NSKeyedArchiver unwrapping, taking `encryptKey` from every `registerList_<region>` entry. Layout documented by [xiaomi-band-ios-export](https://github.com/artyomxx/xiaomi-band-ios-export) (MIT, tested there with a Smart Band 10); tested here with synthetic fixtures only.
+- **Android**: the Mi Fitness logs in `Android/data/com.mi.health/files/log/` contain `encryptKey=` / `token=` (see [Gadgetbridge](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/) and Gadgetbridge issues [#4052](https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/4052), [#4859](https://codeberg.org/Freeyourgadget/Gadgetbridge/issues/4859)).
 
 ## Health data
 
@@ -121,8 +130,8 @@ Protocol details: [docs/protocol.md](docs/protocol.md).
 - [ ] Test Mi Band 8 and tune the BLE write size (default 180 bytes).
 - [ ] App/watchface store (catalog + search + one-tap install).
 - [ ] i18n (English / 中文).
-- [ ] Confirm the QR-retrieved key works for the Mi Band. If not, look into the Mi Fitness API.
+- [ ] Confirm the Mi Fitness QR route (`get_source_list`) and the iPhone/iPad folder route with a real account and band; note which key field (`encrypt_key`, `token`) the band accepts.
 
 ## License
 
-AGPL-3.0-or-later, because the protocol code is a port of Gadgetbridge (AGPL-3.0). The Xiaomi login flow is ported from Xiaomi Cloud Tokens Extractor (MIT). See [LICENSE](LICENSE).
+AGPL-3.0-or-later, because the protocol code is a port of Gadgetbridge (AGPL-3.0). The Xiaomi login flow is ported from Xiaomi Cloud Tokens Extractor (MIT); the Mi Fitness calls follow ha_miband (Apache-2.0), huami-token (MIT) and AstroBox (AGPL-3.0). See [LICENSE](LICENSE).

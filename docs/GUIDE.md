@@ -15,7 +15,7 @@ Install apps and watchfaces on a **Xiaomi Smart Band 8 / 9 / 10** right from you
 | 💻 Computer | Windows, macOS or Linux, with Bluetooth |
 | 🌐 Browser | **Google Chrome** or **Microsoft Edge** (Safari and Firefox do **not** work) |
 | ⌚ Band | Mi Band 8, 9, 9 Pro, 9 Active, 10, 10 Pro, **already paired with the Mi Fitness app** on your phone |
-| 📱 Phone | To scan a QR code that gets the band's "key" |
+| 📱 Phone or iPad | To scan a QR code that gets the band's "key" (iPhone, iPad or Android) |
 
 ---
 
@@ -24,16 +24,41 @@ Install apps and watchfaces on a **Xiaomi Smart Band 8 / 9 / 10** right from you
 Every band has its own key issued by Xiaomi. Without it, the computer cannot talk to the band.
 
 1. On the website, press the orange button **"No key yet? Get it automatically with your Xiaomi account"**.
-2. A QR code appears. Scan it with a phone **signed in to the same Xiaomi account the band is paired with** (e.g. the Xiaomi Home / Mi Home app).
-3. Confirm the login on your phone.
-4. A few seconds later, a list of devices appears. Press **"Use this key"** on your band's row.
+2. A QR code appears. Scan it with the camera of your phone or iPad, and sign in with **the same Xiaomi account the band is paired with in Mi Fitness** (in Mi Fitness: *Profile* shows the account). Can't scan? Press *"Open the Xiaomi login page"* and sign in on the computer instead.
+3. Confirm the login (Xiaomi may ask for a verification code).
+4. A few seconds later, your band appears in a list (marked *Mi Fitness*). Press **"Use this key"** on its row.
+   If a band has two rows with different keys (*from "encrypt_key"* / *from "token"*), try the first one; if the band says "Wrong auth key", use the other.
 5. Tick **"Remember on this browser"** so you don't have to do this again next time.
 
-**Band not in the list?**
-- Pick the correct **Account region** (for Vietnam it is usually *Singapore*) and press the button again.
-- If that still doesn't work: open *"Other ways to get the auth key"* on the page, or ask someone tech-savvy to help following the [Gadgetbridge guide](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/).
+The page first reads the band list of **Mi Fitness** (Mi Band 7 Pro, 8, 9, 10, Xiaomi watches), then the Bluetooth devices of **Mi Home**, with one login.
 
-> 🔒 The page never asks for your Xiaomi password. The login session is used once to read the key and then discarded, never stored.
+**Band not in the list?** The page says what it checked:
+- *"Mi Fitness lists no band on this account"*: you signed in with another Xiaomi account than the one in Mi Fitness, or try another **Account region** (for Vietnam it is usually *Singapore*).
+- *"Xiaomi did not hand out the Mi Fitness device list"*: this cloud route is new and Xiaomi may change it. Use one of the ways below.
+
+### Other ways to get the key
+
+**iPhone / iPad (no Android needed)**: the key is stored in the Mi Fitness app folder, which iOS lets you copy.
+
+1. On the iPhone or iPad where Mi Fitness is signed in and the band has synced, open **Files** → **Browse** → **On My iPhone** (or **On My iPad**).
+2. Long-press the **Mi Fitness** folder → **Compress**. You get *Mi Fitness.zip*.
+3. Send the zip to the computer: AirDrop (Mac), iCloud Drive, Google Drive, or an email to yourself.
+4. On the website, open *"Other ways to get the auth key"* and pick the zip. The page reads it in the browser (nothing is uploaded) and shows **"Use this key"** for the band.
+5. Delete the zip afterwards: it also contains your health data.
+
+Already unzipped it? Pick `manifest.sqlite` and `manifest.sqlite-wal` from `MHWCahe/<number>/VirtualDevice_registerList/` instead.
+
+**Android**: Mi Fitness writes the key to its log files.
+
+1. Open Mi Fitness with the band connected and let it sync.
+2. Connect the phone to a computer over USB (file transfer) and copy the logs from `Android/data/com.mi.health/files/log/` (older versions: `Android/data/com.xiaomi.wearable/files/log/`), e.g. `XiaomiFit.device.log`, `Transfer.device.log` and their `.bak` copies.
+3. Search them for `encryptKey=` or `token=` followed by 32 hex characters and use the **last** match, e.g.
+   `grep -Eo '(encryptKey|token|authKey)[=:" ]+[0-9a-fA-F]{32}' *.log* | tail -1`
+   (the line usually contains `createApiCall() called with: device DeviceInfo(`).
+
+More background: the [Gadgetbridge guide](https://gadgetbridge.org/basics/pairing/huami-xiaomi-server/).
+
+> 🔒 The page never asks for your Xiaomi password. The login session is used once to read the key and then discarded, never stored or logged.
 
 **Don't** unpair the band in Mi Fitness, and don't reset the band: doing either changes the key and you'll have to get it again.
 

@@ -26,7 +26,7 @@ npm run dev:worker  # build, then run the Worker + page at http://localhost:8787
 |---|---|
 | `npm run dev` | Dev server with hot reload (frontend only) |
 | `npm run dev:worker` | Run the Worker locally via `wrangler dev` |
-| `npm test` | Vitest: crypto, packets, parsers, simulated band, Xiaomi request signing |
+| `npm test` | Vitest: crypto, packets, parsers, simulated band, Xiaomi request signing, Mi Fitness folder reader |
 | `npm run typecheck` | TypeScript for both `src/` and `worker/` |
 | `npm run build` | Typecheck + build to `dist/` |
 | `npm run deploy` | Build + `wrangler deploy` (needs Cloudflare access, see README) |
@@ -43,6 +43,7 @@ src/
     packets.ts         Encode/decode SPP V1 and V2 frames
     proto.ts           Trimmed protobuf schema (field numbers kept as in Gadgetbridge)
     files.ts           Read .rpk (zip + manifest.json) and watchface .bin
+    mifitness-files.ts Auth key from the iPhone/iPad Mi Fitness folder (SQLite + bplist reader)
   transport/
     serial.ts          Web Serial → Bluetooth Classic SPP (Mi Band 9/10)
     ble.ts             Web Bluetooth, auto-detects BLE V1 (Mi Band 8) or V2 (9 Active)
@@ -55,7 +56,7 @@ src/
   i18n.ts              EN / 中文 / VI dictionaries and the t() function
 worker/
   index.ts             Serves dist/ + API /api/xiaomi/qr, /api/xiaomi/poll
-  xiaomi-cloud.ts      Xiaomi QR login, RC4 request signing, BLE key retrieval
+  xiaomi-cloud.ts      Xiaomi QR login (Mi Fitness), RC4 request signing, Mi Fitness + Mi Home key retrieval
 public/apps/           Demo apps (catalog.json + .rpk) shown in the "Demo apps" section
 demo-apps/             Demo app sources
 test/
