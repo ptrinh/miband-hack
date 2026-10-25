@@ -815,7 +815,7 @@ $('btn-note-add').onclick = () => {
 // ------------------------------------------------------- key from cloud ---
 
 interface CloudDevice { server: string; source?: 'mifitness' | 'mihome'; keyField?: string; name: string; model: string; did: string; mac?: string; key?: string }
-interface PollResult { status: string; devices?: CloudDevice[]; fitness?: { ok: boolean }; mihome?: { ok: boolean | null } }
+interface PollResult { status: string; devices?: CloudDevice[]; fitness?: { ok: boolean }; mihome?: { ok: boolean | null }; trail?: string[] }
 
 interface KeyRow { title: string; sub: string; key: string }
 
@@ -899,6 +899,8 @@ function renderCloudDevices(res: PollResult): void {
   const withKey = devices.filter((d) => d.key);
   const looksLikeBand = (d: CloudDevice) => /band|watch|wear|hlth/i.test(`${d.model} ${d.name}`);
   withKey.sort((a, b) => Number(b.source === 'mifitness') - Number(a.source === 'mifitness') || Number(looksLikeBand(b)) - Number(looksLikeBand(a)));
+  // Each Xiaomi step: host, HTTP status, Xiaomi code (no tokens), to tell where the key lookup stopped.
+  for (const step of res.trail ?? []) log(`  · ${step}`);
   log(
     `Mi Fitness: ${res.fitness?.ok ? `${fitness.length} devices` : 'not readable'}; ` +
       `Mi Home: ${res.mihome?.ok === null ? 'skipped' : res.mihome?.ok ? `${devices.length - fitness.length} devices` : 'not readable'}; ` +

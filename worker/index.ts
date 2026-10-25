@@ -42,23 +42,32 @@ async function handleApi(req: Request, url: URL): Promise<Response> {
     const login = await pollQrLogin(body.lp, POLL_WAIT_MS);
     if (!login) return json({ status: 'pending' });
 
+    // Outcome of each step for the page's connection log: hosts, HTTP status and Xiaomi codes only.
+    const trail: string[] = [];
+
     // 1. Mi Fitness (bands 7 Pro / 8 / 9 / 10, watches): the QR logged in to this service.
-    const fitness = await healthSession(login)
+    const fitness = await healthSession(login, trail)
       .then((s) => listFitnessDevices(s, server, FITNESS_BUDGET))
-      .catch(() => ({ ok: false, devices: [] }));
-    if (fitness.devices.some((d) => d.key)) return json({ status: 'ok', fitness: { ok: true }, mihome: { ok: null }, devices: fitness.devices });
+      .catch((e: Error) => {
+        trail.push(`mi fitness: ${e.message.slice(0, 80)}`);
+        return { ok: false, devices: [] };
+      });
+    if (fitness.devices.some((d) => d.key)) return json({ status: 'ok', fitness: { ok: true }, mihome: { ok: null }, devices: fitness.devices, trail });
 
     // 2. Mi Home Bluetooth devices, reached with the same login (passToken SSO, no second scan).
     let mihome: { ok: boolean | null } = { ok: null };
     let homeDevices: Awaited<ReturnType<typeof listDevices>> = [];
-    const home = await ssoSession(login, 'xiaomiio').catch(() => null);
+    const home = await ssoSession(login, 'xiaomiio', trail).catch((e: Error) => {
+      trail.push(`mi home: ${e.message.slice(0, 80)}`);
+      return null;
+    });
     if (home) {
       homeDevices = await listDevices(home, servers, MIHOME_BUDGET).catch(() => []);
       mihome = { ok: true };
     } else {
       mihome = { ok: false };
     }
-    return json({ status: 'ok', fitness: { ok: fitness.ok }, mihome, devices: [...fitness.devices, ...homeDevices] });
+    return json({ status: 'ok', fitness: { ok: fitness.ok }, mihome, devices: [...fitness.devices, ...homeDevices], trail });
   }
 
   return json({ error: 'not found' }, 404);

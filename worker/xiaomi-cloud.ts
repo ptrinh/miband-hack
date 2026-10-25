@@ -153,39 +153,53 @@ export async function clientSign(nonce: string, ssecurity: string): Promise<stri
 }
 
 /** Follows the STS location and returns the serviceToken cookie it sets. */
-async function fetchServiceToken(location: string, ssecurity: string, nonce?: string): Promise<string> {
+async function fetchServiceToken(location: string, ssecurity: string, nonce?: string, trail?: string[]): Promise<string> {
   let url = location;
   if (nonce && !/[?&]clientSign=/.test(url)) url += `${url.includes('?') ? '&' : '?'}clientSign=${encodeURIComponent(await clientSign(nonce, ssecurity))}`;
   const loc = await fetch(url, { redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const cookie = loc.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
+  trail?.push(`sts ${new URL(location).host}: HTTP ${loc.status}, token ${cookie ? 'yes' : 'no'}`);
   if (!cookie) throw new Error('Could not get a service token from Xiaomi');
   return cookie;
 }
 
 /** The Mi Fitness session from the QR login (2 subrequests were spent: long-poll + STS). */
-export async function healthSession(login: QrLogin): Promise<Session> {
-  const token = await fetchServiceToken(login.location, login.ssecurity, login.nonce);
-  return new Session(login.userId, login.ssecurity, token, login.cUserId);
+export async function healthSession(login: QrLogin, trail?: string[]): Promise<Session> {
+  const token = await fetchServiceToken(login.location, login.ssecurity, login.nonce, trail);
+  const s = new Session(login.userId, login.ssecurity, token, login.cUserId);
+  if (trail) s.trail = trail;
+  return s;
 }
 
 /**
  * Single sign-on to another service (e.g. Mi Home's "xiaomiio") with the passToken from the
  * QR login, without another scan. Returns null if Xiaomi asks for a fresh login.
  */
-export async function ssoSession(login: QrLogin, sid: string): Promise<Session | null> {
-  if (!login.passToken) return null;
+export async function ssoSession(login: QrLogin, sid: string, trail?: string[]): Promise<Session | null> {
+  if (!login.passToken) {
+    trail?.push(`sso ${sid}: no passToken in the QR login`);
+    return null;
+  }
   const r = await fetch(`https://account.xiaomi.com/pass/serviceLogin?sid=${encodeURIComponent(sid)}&_json=true`, {
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
       Cookie: `userId=${login.userId}; cUserId=${login.cUserId}; passToken=${login.passToken}`,
     },
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    trail?.push(`sso ${sid}: HTTP ${r.status}`);
+    return null;
+  }
   const d = toJson(await r.text());
-  if (!d.ssecurity || !d.location) return null;
+  if (!d.ssecurity || !d.location) {
+    trail?.push(`sso ${sid}: HTTP 200, code ${d.code ?? '?'}, no session${d.desc ? ` (${String(d.desc).slice(0, 60)})` : ''}`);
+    return null;
+  }
   const ssecurity = String(d.ssecurity);
-  const token = await fetchServiceToken(String(d.location), ssecurity, d.nonce == null ? undefined : String(d.nonce));
-  return new Session(String(d.userId ?? login.userId), ssecurity, token, String(d.cUserId ?? login.cUserId));
+  const token = await fetchServiceToken(String(d.location), ssecurity, d.nonce == null ? undefined : String(d.nonce), trail);
+  const s = new Session(String(d.userId ?? login.userId), ssecurity, token, String(d.cUserId ?? login.cUserId));
+  if (trail) s.trail = trail;
+  return s;
 }
 
 export async function signedNonce(ssecurity: string, nonce: string): Promise<string> {
@@ -253,6 +267,9 @@ export class Session {
   private readonly agent = `${randomChars(18, 97, 122)}-${randomChars(13, 65, 69)} APP/com.xiaomi.mihome APPV/10.5.201`;
   subrequests = 0;
 
+  /** Step-by-step outcome (hosts, HTTP status, Xiaomi codes; never tokens or bodies), shown in the page's log. */
+  trail?: string[];
+
   constructor(
     readonly userId: string,
     private readonly ssecurity: string,
@@ -288,10 +305,17 @@ export class Session {
       },
       body: variant === 'mihome' ? undefined : query.toString(),
     });
-    if (!r.ok) return null;
+    const tag = `${host} ${variant}`;
+    if (!r.ok) {
+      this.trail?.push(`${tag}: HTTP ${r.status}`);
+      return null;
+    }
     try {
-      return JSON.parse(await decryptResponse(this.ssecurity, nonce, (await r.text()).trim().replace(/^"|"$/g, '')));
+      const res = JSON.parse(await decryptResponse(this.ssecurity, nonce, (await r.text()).trim().replace(/^"|"$/g, '')));
+      this.trail?.push(`${tag}: HTTP 200, code ${res?.code ?? '?'}${res?.code !== 0 && res?.message ? ` (${String(res.message).slice(0, 60)})` : ''}`);
+      return res;
     } catch {
+      this.trail?.push(`${tag}: HTTP 200, reply not decryptable`);
       return null;
     }
   }
