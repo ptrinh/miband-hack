@@ -48,6 +48,22 @@
       ],
       "source": "demo-apps/notes",
       "customize": "notes"
+    },
+    {
+      "id": "uk.trinh.miband.sat",
+      "name": "SAT Flashcards",
+      "description": {
+        "en": "Learn 372 SAT words on your wrist: tap a card to flip, then Know it or Again. Spaced repetition, progress saved on the band.",
+        "zh": "在手腕上背 372 个 SAT 单词：点击卡片翻面，再选“Know it”或“Again”。间隔重复，学习进度保存在手环上。",
+        "vi": "Học 372 từ vựng SAT trên cổ tay: bấm thẻ để lật, rồi chọn Know it hoặc Again. Ôn lặp ngắt quãng, tiến độ lưu trên band."
+      },
+      "file": "apps/sat.rpk",
+      "icon": "apps/sat.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/sat-flashcards"
     }
   ]
 }

@@ -1,0 +1,334 @@
+<template>
+  <div class="page">
+    <div class="top" onclick="openStats">
+      <text class="tag {{tagClass}}">{{tag}}</text>
+      <text class="count">{{learned}}/{{total}} ›</text>
+    </div>
+    <text if="{{state === 'loading'}}" class="info">Loading…</text>
+    <div elif="{{state === 'done'}}" class="done" onclick="openStats">
+      <text class="done-title">All done!</text>
+      <text class="info">Nothing due now. Come back tomorrow.</text>
+    </div>
+    <div elif="{{!flipped}}" class="card" onclick="flip">
+      <text class="word {{wordSize}}">{{word}}</text>
+      <text class="pos">{{pos}}</text>
+    </div>
+    <div else class="card back" onclick="flip">
+      <text class="word-small">{{word}}</text>
+      <text class="pos">{{pos}}</text>
+      <text class="def">{{def}}</text>
+      <text class="ex">{{ex}}</text>
+    </div>
+    <div if="{{state === 'card' && flipped}}" class="buttons">
+      <div class="btn again" onclick="answerAgain">
+        <text class="btn-label">Again</text>
+      </div>
+      <div class="btn know" onclick="answerKnow">
+        <text class="btn-label">Know it</text>
+      </div>
+    </div>
+    <text elif="{{state === 'card'}}" class="hint">Tap card to flip</text>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import router from '@system.router'
+import { WORDS } from '../../common/words.js'
+import {
+  createState, createSession, newOrder, nextCard, answer, isNew,
+  stats, serialize, deserialize, dayNumber, partOfSpeech
+} from '../../common/srs.js'
+
+var STORAGE_KEY = 'sat-v1'
+var ORDER = newOrder(WORDS.length)
+
+var progress = createState()
+var session = createSession()
+
+export default {
+  private: {
+    state: 'loading',
+    flipped: false,
+    word: '',
+    pos: '',
+    def: '',
+    ex: '',
+    wordSize: 'w-l',
+    tag: '',
+    tagClass: '',
+    learned: 0,
+    total: WORDS.length
+  },
+
+  onInit() {
+    this.current = -1
+    this.reloadOnShow = false
+    this.load()
+  },
+
+  onShow() {
+    // Coming back from the stats page: progress may have been reset there.
+    if (this.reloadOnShow) {
+      this.reloadOnShow = false
+      this.load()
+    }
+  },
+
+  onHide() {
+    this.save()
+  },
+
+  // The in-memory session (which "Again" cards are waiting) is kept across reloads; after a
+  // reset its entries simply refer to unseen words, which nextCard() treats as new.
+  load() {
+    var self = this
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        progress = deserialize(text)
+        self.next()
+      },
+      fail: function () {
+        progress = createState()
+        self.next()
+      }
+    })
+  },
+
+  save() {
+    // An empty value deletes the key (documented behaviour of storage.set).
+    storage.set({ key: STORAGE_KEY, value: serialize(progress) })
+  },
+
+  next() {
+    var today = dayNumber()
+    this.learned = stats(progress, WORDS, today).learned
+    this.flipped = false
+    var i = nextCard(progress, WORDS, ORDER, today, session)
+    this.current = i
+    if (i < 0) {
+      this.state = 'done'
+      this.tag = 'DONE'
+      this.tagClass = 'tag-done'
+      return
+    }
+    var e = WORDS[i]
+    var card = progress.cards[e[0]]
+    this.word = e[0]
+    this.pos = partOfSpeech(e[1])
+    this.def = e[2]
+    this.ex = e[3]
+    this.wordSize = e[0].length <= 8 ? 'w-l' : e[0].length <= 11 ? 'w-m' : 'w-s'
+    if (isNew(progress, e[0])) {
+      this.tag = 'NEW'
+      this.tagClass = 'tag-new'
+    } else if (card.b === 0) {
+      this.tag = 'AGAIN'
+      this.tagClass = 'tag-again'
+    } else {
+      this.tag = 'BOX ' + card.b
+      this.tagClass = 'tag-review'
+    }
+    this.state = 'card'
+  },
+
+  flip() {
+    this.flipped = !this.flipped
+  },
+
+  answerKnow() {
+    this.grade(true)
+  },
+
+  answerAgain() {
+    this.grade(false)
+  },
+
+  grade(known) {
+    if (this.current < 0) return
+    answer(progress, WORDS[this.current][0], known, dayNumber(), session)
+    this.save()
+    this.next()
+  },
+
+  openStats() {
+    if (this.state === 'loading') return
+    var s = stats(progress, WORDS, dayNumber())
+    this.save()
+    this.reloadOnShow = true
+    router.push({
+      uri: 'pages/stats',
+      params: {
+        total: s.total,
+        seen: s.seen,
+        learned: s.learned,
+        mastered: s.mastered,
+        due: s.due,
+        boxes: s.boxes.join(',')
+      }
+    })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 22px 8px 16px 8px;
+}
+
+.top {
+  height: 40px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.tag {
+  font-size: 15px;
+  font-weight: bold;
+  color: #8a8a8e;
+}
+
+.tag-new {
+  color: #64d2ff;
+}
+
+.tag-again {
+  color: #ff453a;
+}
+
+.tag-review {
+  color: #ffd60a;
+}
+
+.tag-done {
+  color: #32d74b;
+}
+
+.count {
+  font-size: 17px;
+  color: #ffb340;
+}
+
+.info {
+  margin-top: 12px;
+  font-size: 20px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.done {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.done-title {
+  font-size: 28px;
+  color: #32d74b;
+  text-align: center;
+}
+
+.card {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-top: 4px;
+  padding: 10px 8px;
+  border-radius: 20px;
+  background-color: #1c1c1e;
+}
+
+.back {
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 12px 10px;
+}
+
+.word {
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+}
+
+.w-l {
+  font-size: 32px;
+}
+
+.w-m {
+  font-size: 26px;
+}
+
+.w-s {
+  font-size: 21px;
+}
+
+.word-small {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffb340;
+}
+
+.pos {
+  margin-top: 4px;
+  font-size: 15px;
+  color: #8a8a8e;
+}
+
+.def {
+  margin-top: 10px;
+  font-size: 21px;
+  color: #ffffff;
+}
+
+.ex {
+  margin-top: 10px;
+  font-size: 17px;
+  color: #aeaeb2;
+}
+
+.buttons {
+  height: 64px;
+  margin-top: 10px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.btn {
+  width: 84px;
+  height: 64px;
+  border-radius: 20px;
+  justify-content: center;
+  align-items: center;
+}
+
+.again {
+  background-color: #5c1a16;
+}
+
+.know {
+  background-color: #12512a;
+}
+
+.btn-label {
+  font-size: 20px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.hint {
+  height: 64px;
+  margin-top: 10px;
+  font-size: 18px;
+  color: #636366;
+  text-align: center;
+}
+</style>
