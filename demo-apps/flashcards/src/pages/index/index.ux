@@ -1,0 +1,152 @@
+<template>
+  <div class="page">
+    <text class="header">Flashcards</text>
+    <text if="{{state === 'loading'}}" class="info">Loading…</text>
+    <text elif="{{state === 'error'}}" class="info">Cannot read decks</text>
+    <div elif="{{decks.length === 0}}" class="empty">
+      <text class="info">No decks yet</text>
+      <text class="hint">Write them at miband.trinh.uk and press Add</text>
+    </div>
+    <list else class="list">
+      <list-item type="deck" class="item" for="{{(i, d) in decks}}" onclick="open(i)">
+        <text class="name">{{d.name}}</text>
+        <text class="sub">{{d.sub}}</text>
+      </list-item>
+      <list-item type="end" class="end-item">
+        <text class="end"> </text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import router from '@system.router'
+import { loadIndex } from '../../common/decks.js'
+import { parseSummary } from '../../common/deck.js'
+
+var SUMMARY_KEY = 'fc-sum' // "deckId:learned:total;…", written by the study page
+
+var index = []
+
+function subLine(d, sum) {
+  var s = sum[d.id]
+  var cards = d.n === 1 ? '1 card' : d.n + ' cards'
+  // A summary saved for an older version of the deck still counts the cards it had then.
+  return s && s.total === d.n ? cards + ' · ' + s.learned + ' learned' : cards
+}
+
+export default {
+  private: {
+    state: 'loading',
+    decks: []
+  },
+
+  onInit() {
+    var self = this
+    loadIndex(function (err, decks) {
+      index = decks
+      self.state = err ? 'error' : 'ready'
+      self.refresh()
+    })
+  },
+
+  // Coming back from a deck: show its new learned count.
+  onShow() {
+    if (this.state === 'ready') this.refresh()
+  },
+
+  refresh() {
+    var self = this
+    storage.get({
+      key: SUMMARY_KEY,
+      success: function (text) { self.show(parseSummary(text)) },
+      fail: function () { self.show({}) }
+    })
+  },
+
+  show(sum) {
+    var list = []
+    for (var i = 0; i < index.length; i++) list.push({ name: index[i].name, sub: subLine(index[i], sum) })
+    this.decks = list
+  },
+
+  open(i) {
+    var d = index[i]
+    if (!d) return
+    router.push({ uri: 'pages/study', params: { deckId: d.id, file: d.file, name: d.name } })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 24px 8px 0 14px;
+}
+
+.header {
+  height: 40px;
+  font-size: 24px;
+  color: #bf5af2;
+  text-align: center;
+}
+
+.empty {
+  flex-direction: column;
+  align-items: center;
+}
+
+.info {
+  margin-top: 60px;
+  font-size: 22px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.hint {
+  margin-top: 12px;
+  font-size: 17px;
+  color: #636366;
+  text-align: center;
+}
+
+.list {
+  flex: 1;
+  flex-direction: column;
+}
+
+.item {
+  min-height: 72px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background-color: #1f1f22;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.name {
+  font-size: 21px;
+  color: #ffffff;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  margin-top: 2px;
+  font-size: 15px;
+  color: #8a8a8e;
+}
+
+.end-item {
+  height: 60px;
+}
+
+.end {
+  font-size: 12px;
+}
+</style>

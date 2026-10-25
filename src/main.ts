@@ -10,6 +10,8 @@ import { SerialTransport, webSerialAvailable } from './transport/serial';
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
 import { buildNotesRpk, notesVersionCode, type Note } from './rpk';
 import { mountHealth, renderHealth } from './health/ui';
+import { decksEditorOpen, decksForInstall, mountDecksEditor, renderDecksEditor, showDecksEditor } from './decks/ui';
+import { buildFlashcardsRpk } from './rpk/flashcards';
 
 const KEY_STORAGE = 'miband-hack.authkey';
 
@@ -120,6 +122,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <span class="progress-label" id="notes-saved" style="margin:0 0 0 auto"></span>
         </div>
       </div>
+      <div id="decks-editor" class="notes-editor deck-editor hidden"></div>
       <p class="hint" id="catalog-hint" data-i18n-html="catalogHint"></p>
     </section>
 
@@ -511,7 +514,7 @@ drop.ondrop = (e) => {
 
 /** A preview image rendered by tools/screenshots (not a photo of a real band); alt may be per language. */
 interface CatalogShot { src: string; alt?: string | Record<string, string> }
-interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes'; screenshots?: CatalogShot[] }
+interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes' | 'flashcards'; screenshots?: CatalogShot[] }
 
 let catalog: CatalogApp[] = [];
 let catalogBusy = false;
@@ -567,6 +570,15 @@ function renderCatalog(): void {
       edit.onclick = () => {
         $('notes-editor').classList.toggle('hidden');
         renderNotesEditor();
+        renderCatalog();
+      };
+      li.append(edit);
+    } else if (app.customize === 'flashcards') {
+      const edit = document.createElement('button');
+      edit.className = 'small';
+      edit.textContent = decksEditorOpen() ? t('decksHide') : t('decksEdit');
+      edit.onclick = () => {
+        showDecksEditor();
         renderCatalog();
       };
       li.append(edit);
@@ -656,6 +668,9 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
     if (app.customize === 'notes') {
       label.textContent = t('notesBuilding');
       bytes = await buildNotesRpk(bytes, notes.filter((n) => n.title.trim() || n.body.trim()), undefined, { versionCode: notesVersionCode() });
+    } else if (app.customize === 'flashcards') {
+      label.textContent = t('decksBuilding');
+      bytes = await buildFlashcardsRpk(bytes, decksForInstall(), undefined, { versionCode: notesVersionCode() });
     }
     const parsed = parseFile(bytes);
     if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : t('notRpk'));
@@ -926,6 +941,7 @@ function localize(): void {
   applyI18n();
   setQrLink();
   renderNotesEditor();
+  renderDecksEditor();
   renderLangSwitch();
   renderSupport();
   render();
@@ -933,6 +949,7 @@ function localize(): void {
 }
 
 mountHealth($('card-health'), { device: () => device, log, toast, fail });
+mountDecksEditor($('decks-editor'), { toast, fail });
 localize();
 void loadCatalog();
 log(t('ready'));

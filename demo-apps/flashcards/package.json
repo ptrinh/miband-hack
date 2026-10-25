@@ -1,0 +1,20 @@
+{
+  "name": "miband-flashcards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Custom flashcard decks quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app): decks written in the web app, cards and quiz with Leitner review saved on the band",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "aiot build",
+    "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
+    "release": "npm run presign && aiot release",
+    "publish-demo": "npm run release && cp dist/uk.trinh.miband.flashcards.release.1.0.0.rpk ../../public/apps/flashcards.rpk && cp src/common/logo.png ../../public/apps/flashcards.png",
+    "test": "node --no-warnings test/deck-check.mjs && node --no-warnings test/quiz-check.mjs"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "2.0.5"
+  }
+}

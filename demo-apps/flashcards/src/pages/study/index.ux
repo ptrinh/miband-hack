@@ -1,0 +1,650 @@
+<template>
+  <div class="page">
+    <div class="top" onclick="openStats">
+      <text class="tag {{tagClass}}">{{tag}}</text>
+      <text class="count">{{learned}}/{{total}} ›</text>
+    </div>
+    <text if="{{state === 'loading'}}" class="info">Loading…</text>
+    <text elif="{{state === 'error'}}" class="info">Cannot read this deck</text>
+    <text elif="{{state === 'empty'}}" class="info">This deck has no cards</text>
+    <div elif="{{state === 'done'}}" class="done" onclick="openStats">
+      <text class="done-title">All done!</text>
+      <text class="info">Nothing due now. Come back tomorrow.</text>
+    </div>
+    <div elif="{{state === 'quiz'}}" class="quiz">
+      <div class="prompt">
+        <text class="prompt-text {{promptSize}}">{{prompt}}</text>
+      </div>
+      <div class="choice {{c.cls}}" for="{{(i, c) in choices}}" onclick="pick(i)">
+        <text class="choice-label {{c.size}} {{c.lcls}}">{{c.text}}</text>
+      </div>
+    </div>
+    <list elif="{{state === 'result'}}" class="card back {{resultClass}}" onclick="nextQuestion">
+      <list-item type="verdict" class="li">
+        <text class="verdict {{verdictClass}}">{{verdict}}</text>
+      </list-item>
+      <list-item type="front" class="li">
+        <text class="front-small">{{front}}</text>
+      </list-item>
+      <list-item type="back" class="li">
+        <text class="back-text {{backSize}}">{{back}}</text>
+      </list-item>
+      <list-item type="note" class="li">
+        <text class="note">{{note}}</text>
+      </list-item>
+    </list>
+    <div elif="{{!flipped}}" class="card" onclick="flip">
+      <text class="front {{frontSize}}">{{front}}</text>
+    </div>
+    <list else class="card back" onclick="flip">
+      <list-item type="front" class="li">
+        <text class="front-small">{{front}}</text>
+      </list-item>
+      <list-item type="back" class="li">
+        <text class="back-text {{backSize}}">{{back}}</text>
+      </list-item>
+      <list-item type="note" class="li">
+        <text class="note">{{note}}</text>
+      </list-item>
+    </list>
+    <div if="{{state === 'card' && flipped}}" class="buttons">
+      <div class="btn again" onclick="answerAgain">
+        <text class="btn-label">Again</text>
+      </div>
+      <div class="btn know" onclick="answerKnow">
+        <text class="btn-label">Know it</text>
+      </div>
+    </div>
+    <text elif="{{state === 'card'}}" class="hint">Tap card to flip</text>
+    <div elif="{{state === 'result'}}" class="next" onclick="nextQuestion">
+      <text class="btn-label">Next ›</text>
+    </div>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import router from '@system.router'
+import { loadDeck } from '../../common/decks.js'
+import { keysOf, entryAt, sizeClass, parseSummary, serializeSummary } from '../../common/deck.js'
+import {
+  createState, createSession, nextCard, answer, isNew, stats, serialize, deserialize, dayNumber
+} from '../../common/srs.js'
+import {
+  quizAvailable, makeQuestion, promptText, choiceText, isCorrect,
+  createScore, record, accuracy, serializeScore, deserializeScore
+} from '../../common/quiz.js'
+
+// Per deck: progress "cardId:box:dueDay;…" and quiz totals; the mode is shared by all decks.
+var PROGRESS_PREFIX = 'fc-p-'
+var QUIZ_PREFIX = 'fc-q-'
+var MODE_KEY = 'fc-mode' // 'cards' or 'quiz', chosen on the stats page
+var SUMMARY_KEY = 'fc-sum' // learned counts for the deck list
+var FEEDBACK_MS = 700 // how long the coloured choices stay before the answer card
+
+// Module state: the page is created anew for every deck, and only one deck is in memory.
+var LINES = []
+var KEYS = []
+var ORDER = [] // new cards are introduced in the order the user wrote them
+var progress = createState()
+var session = createSession()
+var quizSession = createScore() // this visit: shown in the header
+var quizTotals = createScore() // all time: shown on the stats page
+
+function read(key, done) {
+  storage.get({
+    key: key,
+    success: function (text) { done(text) },
+    fail: function () { done('') }
+  })
+}
+
+export default {
+  // router params
+  protected: {
+    deckId: '',
+    file: '',
+    name: ''
+  },
+
+  private: {
+    state: 'loading',
+    mode: 'cards',
+    flipped: false,
+    front: '',
+    back: '',
+    note: '',
+    frontSize: 'f-xl',
+    backSize: 'b-l',
+    tag: '',
+    tagClass: '',
+    learned: 0,
+    total: 0,
+    prompt: '',
+    promptSize: 'f-m',
+    choices: [],
+    verdict: '',
+    verdictClass: '',
+    resultClass: ''
+  },
+
+  onInit() {
+    var self = this
+    this.current = -1
+    this.question = null
+    this.feedbackTimer = null
+    this.reloadOnShow = false
+    LINES = []
+    KEYS = []
+    ORDER = []
+    progress = createState()
+    session = createSession()
+    quizSession = createScore()
+    loadDeck(String(this.file), function (err, cards) {
+      if (err) {
+        self.state = 'error'
+        return
+      }
+      LINES = cards
+      KEYS = keysOf(cards)
+      for (var i = 0; i < KEYS.length; i++) ORDER.push(i)
+      self.total = KEYS.length
+      if (!KEYS.length) {
+        self.state = 'empty'
+        return
+      }
+      self.load()
+    })
+  },
+
+  onShow() {
+    // Coming back from the stats page: the mode may have changed or progress been reset there.
+    if (this.reloadOnShow) {
+      this.reloadOnShow = false
+      this.load()
+    }
+  },
+
+  onHide() {
+    this.save()
+  },
+
+  onDestroy() {
+    clearTimeout(this.feedbackTimer)
+  },
+
+  load() {
+    var self = this
+    var id = String(this.deckId)
+    clearTimeout(this.feedbackTimer)
+    read(PROGRESS_PREFIX + id, function (text) {
+      progress = deserialize(text)
+      read(QUIZ_PREFIX + id, function (quiz) {
+        quizTotals = deserializeScore(quiz)
+        read(MODE_KEY, function (mode) {
+          self.mode = mode === 'quiz' && quizAvailable(KEYS.length) ? 'quiz' : 'cards'
+          self.next()
+        })
+      })
+    })
+  },
+
+  save() {
+    if (!KEYS.length || this.state === 'loading') return
+    var id = String(this.deckId)
+    // An empty value deletes the key (documented behaviour of storage.set).
+    storage.set({ key: PROGRESS_PREFIX + id, value: serialize(progress) })
+    var learned = stats(progress, KEYS, dayNumber()).learned
+    var total = KEYS.length
+    read(SUMMARY_KEY, function (text) {
+      var sum = parseSummary(text)
+      sum[id] = { learned: learned, total: total }
+      storage.set({ key: SUMMARY_KEY, value: serializeSummary(sum) })
+    })
+  },
+
+  next() {
+    var today = dayNumber()
+    this.learned = stats(progress, KEYS, today).learned
+    this.flipped = false
+    var i = nextCard(progress, KEYS, ORDER, today, session)
+    this.current = i
+    if (i < 0) {
+      this.state = 'done'
+      this.tag = 'DONE'
+      this.tagClass = 'tag-done'
+      return
+    }
+    var e = entryAt(LINES, i)
+    this.front = e[1]
+    this.back = e[2]
+    this.note = e[3]
+    this.frontSize = sizeClass('front', e[1])
+    this.backSize = sizeClass('back', e[2])
+    if (this.mode === 'quiz') {
+      this.showQuestion(i)
+      return
+    }
+    var card = progress.cards[e[0]]
+    if (isNew(progress, e[0])) {
+      this.tag = 'NEW'
+      this.tagClass = 'tag-new'
+    } else if (card.b === 0) {
+      this.tag = 'AGAIN'
+      this.tagClass = 'tag-again'
+    } else {
+      this.tag = 'BOX ' + card.b
+      this.tagClass = 'tag-review'
+    }
+    this.state = 'card'
+  },
+
+  flip() {
+    this.flipped = !this.flipped
+  },
+
+  answerKnow() {
+    this.grade(true)
+    this.next()
+  },
+
+  answerAgain() {
+    this.grade(false)
+    this.next()
+  },
+
+  // Cards and quiz both move the card through the same Leitner boxes.
+  grade(known) {
+    if (this.current < 0) return
+    answer(progress, KEYS[this.current], known, dayNumber(), session)
+    var id = String(this.deckId)
+    storage.set({ key: PROGRESS_PREFIX + id, value: serialize(progress) })
+  },
+
+  quizTag() {
+    var pct = accuracy(quizSession)
+    this.tag = pct < 0 ? 'QUIZ' : pct + '%'
+    this.tagClass = 'tag-quiz'
+  },
+
+  showQuestion(i) {
+    var q = makeQuestion(LINES, i, Math.random)
+    var list = []
+    for (var k = 0; k < q.choices.length; k++) {
+      var text = choiceText(LINES, q, k)
+      list.push({ text: text, size: sizeClass('choice', text), cls: '', lcls: '' })
+    }
+    this.question = q
+    this.prompt = promptText(LINES, q)
+    this.promptSize = q.kind === 'back' ? sizeClass('front', this.prompt) : 'p-' + sizeClass('choice', this.prompt)
+    this.choices = list
+    this.quizTag()
+    this.state = 'quiz'
+  },
+
+  pick(k) {
+    var q = this.question
+    if (this.state !== 'quiz' || !q || q.picked !== undefined) return
+    q.picked = k
+    var ok = isCorrect(q, k)
+    record(quizSession, ok)
+    record(quizTotals, ok)
+    storage.set({ key: QUIZ_PREFIX + String(this.deckId), value: serializeScore(quizTotals) })
+    this.grade(ok)
+    // Colour first: the right answer green, a wrong pick red, the rest dimmed.
+    var list = []
+    for (var j = 0; j < this.choices.length; j++) {
+      var cls = j === q.correct ? 'right' : j === k ? 'wrong' : 'dim'
+      list.push({ text: this.choices[j].text, size: this.choices[j].size, cls: cls, lcls: cls === 'dim' ? 'l-dim' : '' })
+    }
+    this.choices = list
+    this.quizTag()
+    this.verdict = ok
+      ? (quizSession.streak > 1 ? 'Correct! Streak ' + quizSession.streak : 'Correct!')
+      : 'Not quite'
+    this.verdictClass = ok ? 'v-right' : 'v-wrong'
+    this.resultClass = ok ? 'res-right' : 'res-wrong'
+    var self = this
+    this.feedbackTimer = setTimeout(function () {
+      if (self.state === 'quiz') self.state = 'result'
+    }, FEEDBACK_MS)
+  },
+
+  nextQuestion() {
+    this.question = null
+    this.next()
+  },
+
+  openStats() {
+    if (this.state === 'loading' || this.state === 'error' || this.state === 'empty') return
+    var s = stats(progress, KEYS, dayNumber())
+    this.save()
+    this.reloadOnShow = true
+    router.push({
+      uri: 'pages/stats',
+      params: {
+        deckId: this.deckId,
+        name: this.name,
+        total: s.total,
+        seen: s.seen,
+        learned: s.learned,
+        mastered: s.mastered,
+        due: s.due,
+        boxes: s.boxes.join(','),
+        mode: this.mode,
+        quizOk: quizAvailable(KEYS.length) ? 1 : 0,
+        quizAnswered: quizTotals.answered,
+        quizCorrect: quizTotals.correct,
+        quizBest: quizTotals.best
+      }
+    })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 22px 8px 16px 14px;
+}
+
+.top {
+  height: 40px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.tag {
+  font-size: 15px;
+  font-weight: bold;
+  color: #8a8a8e;
+}
+
+.tag-new {
+  color: #64d2ff;
+}
+
+.tag-again {
+  color: #ff453a;
+}
+
+.tag-review {
+  color: #ffd60a;
+}
+
+.tag-done {
+  color: #32d74b;
+}
+
+.tag-quiz {
+  color: #bf5af2;
+}
+
+.count {
+  font-size: 17px;
+  color: #bf5af2;
+}
+
+.info {
+  margin-top: 12px;
+  font-size: 20px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.done {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.done-title {
+  font-size: 28px;
+  color: #32d74b;
+  text-align: center;
+}
+
+.card {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-top: 4px;
+  padding: 10px 8px;
+  border-radius: 20px;
+  background-color: #1c1c1e;
+}
+
+.back {
+  padding: 12px 10px;
+}
+
+.li {
+  flex-direction: column;
+  width: 100%;
+}
+
+.front {
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+}
+
+.f-xl {
+  font-size: 32px;
+}
+
+.f-l {
+  font-size: 26px;
+}
+
+.f-m {
+  font-size: 21px;
+}
+
+.f-s {
+  font-size: 18px;
+}
+
+.f-xs {
+  font-size: 16px;
+}
+
+.front-small {
+  font-size: 18px;
+  font-weight: bold;
+  color: #bf5af2;
+}
+
+.back-text {
+  margin-top: 8px;
+  color: #ffffff;
+}
+
+.b-l {
+  font-size: 22px;
+}
+
+.b-m {
+  font-size: 19px;
+}
+
+.b-s {
+  font-size: 16px;
+}
+
+.b-xs {
+  font-size: 14px;
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #aeaeb2;
+}
+
+.buttons {
+  height: 64px;
+  margin-top: 10px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.btn {
+  width: 82px;
+  height: 64px;
+  border-radius: 20px;
+  justify-content: center;
+  align-items: center;
+}
+
+.again {
+  background-color: #5c1a16;
+}
+
+.know {
+  background-color: #12512a;
+}
+
+.btn-label {
+  font-size: 20px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.quiz {
+  flex: 1;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.prompt {
+  min-height: 64px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 8px;
+  border-radius: 20px;
+  background-color: #1c1c1e;
+}
+
+.prompt-text {
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  lines: 4;
+  text-overflow: ellipsis;
+}
+
+.p-c-l {
+  font-size: 20px;
+}
+
+.p-c-m {
+  font-size: 18px;
+}
+
+.p-c-s {
+  font-size: 16px;
+}
+
+.p-c-xs {
+  font-size: 14px;
+}
+
+.choice {
+  flex: 1;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.choice-label {
+  color: #ffffff;
+  text-align: center;
+  lines: 3;
+  text-overflow: ellipsis;
+}
+
+.c-l {
+  font-size: 21px;
+}
+
+.c-m {
+  font-size: 18px;
+}
+
+.c-s {
+  font-size: 15px;
+}
+
+.c-xs {
+  font-size: 13px;
+}
+
+.right {
+  background-color: #12512a;
+}
+
+.wrong {
+  background-color: #5c1a16;
+}
+
+.dim {
+  background-color: #1c1c1e;
+}
+
+.l-dim {
+  color: #636366;
+}
+
+.verdict {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.v-right {
+  color: #32d74b;
+}
+
+.v-wrong {
+  color: #ff453a;
+}
+
+.res-right {
+  border-width: 2px;
+  border-color: #32d74b;
+}
+
+.res-wrong {
+  border-width: 2px;
+  border-color: #ff453a;
+}
+
+.next {
+  height: 64px;
+  margin-top: 10px;
+  border-radius: 20px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.hint {
+  height: 64px;
+  margin-top: 10px;
+  font-size: 18px;
+  color: #636366;
+  text-align: center;
+}
+</style>

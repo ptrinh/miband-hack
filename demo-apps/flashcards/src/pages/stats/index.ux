@@ -1,0 +1,313 @@
+<template>
+  <div class="page">
+    <div class="back" onclick="goBack">
+      <text class="back-label">‹ Back</text>
+    </div>
+    <div class="modes">
+      <div class="mode {{mode === 'cards' ? 'mode-on' : ''}}" onclick="chooseCards">
+        <text class="mode-label">Cards</text>
+      </div>
+      <div class="mode {{quizOn ? (mode === 'quiz' ? 'mode-on' : '') : 'mode-off'}}" onclick="chooseQuiz">
+        <text class="mode-label {{quizOn ? '' : 'label-off'}}">Quiz</text>
+      </div>
+    </div>
+    <list class="list">
+      <list-item type="title" class="title-item">
+        <text class="title">{{name}}</text>
+        <text class="quiz-note">{{quizNote}}</text>
+      </list-item>
+      <list-item type="head" class="head-item">
+        <text class="big">{{learned}}</text>
+        <text class="sub">of {{total}} cards learned</text>
+        <div class="bar">
+          <div class="fill" style="width: {{fill}}px;"></div>
+        </div>
+      </list-item>
+      <list-item type="row" class="row" for="{{r in rows}}">
+        <text class="row-label">{{r.label}}</text>
+        <text class="row-value">{{r.value}}</text>
+      </list-item>
+      <list-item type="reset" class="reset-item">
+        <div class="reset {{confirmReset ? 'warn' : ''}}" onclick="resetProgress">
+          <text class="reset-label">{{confirmReset ? 'Tap again to reset' : 'Reset this deck'}}</text>
+        </div>
+      </list-item>
+      <list-item type="end" class="end-item">
+        <text class="end"> </text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import router from '@system.router'
+
+var PROGRESS_PREFIX = 'fc-p-'
+var QUIZ_PREFIX = 'fc-q-'
+var MODE_KEY = 'fc-mode'
+var BAR_WIDTH = 150 // design px, matches .bar
+
+export default {
+  // router params (numbers arrive as strings on some runtimes)
+  protected: {
+    deckId: '',
+    name: '',
+    total: 0,
+    seen: 0,
+    learned: 0,
+    mastered: 0,
+    due: 0,
+    boxes: '',
+    mode: 'cards',
+    quizOk: 1,
+    quizAnswered: 0,
+    quizCorrect: 0,
+    quizBest: 0
+  },
+
+  private: {
+    fill: 0,
+    rows: [],
+    quizOn: true,
+    quizNote: '',
+    confirmReset: false
+  },
+
+  onInit() {
+    var total = parseInt(this.total, 10) || 0
+    var learned = parseInt(this.learned, 10) || 0
+    var seen = parseInt(this.seen, 10) || 0
+    this.quizOn = String(this.quizOk) === '1'
+    this.quizNote = this.quizOn ? '' : 'Quiz needs 4 or more cards'
+    this.fill = total ? Math.round((BAR_WIDTH * learned) / total) : 0
+    var rows = [
+      { label: 'Seen', value: seen },
+      { label: 'New', value: Math.max(0, total - seen) },
+      { label: 'Due now', value: parseInt(this.due, 10) || 0 },
+      { label: 'Mastered', value: parseInt(this.mastered, 10) || 0 }
+    ]
+    var boxes = String(this.boxes || '').split(',')
+    for (var b = 0; b < boxes.length; b++) {
+      if (boxes[b] === '') continue
+      rows.push({ label: b === 0 ? 'Box 0 (again)' : 'Box ' + b, value: parseInt(boxes[b], 10) || 0 })
+    }
+    var answered = parseInt(this.quizAnswered, 10) || 0
+    var correct = parseInt(this.quizCorrect, 10) || 0
+    rows.push({ label: 'Quiz answers', value: answered })
+    rows.push({ label: 'Quiz accuracy', value: answered ? Math.round((100 * correct) / answered) + '%' : '–' })
+    rows.push({ label: 'Best streak', value: parseInt(this.quizBest, 10) || 0 })
+    this.rows = rows
+    this.resetTimer = null
+  },
+
+  resetProgress() {
+    var self = this
+    if (!this.confirmReset) {
+      this.confirmReset = true
+      this.resetTimer = setTimeout(function () { self.confirmReset = false }, 2500)
+      return
+    }
+    clearTimeout(this.resetTimer)
+    this.confirmReset = false
+    var id = String(this.deckId)
+    // The study page reloads progress from storage when it is shown again.
+    function deleteProgress() {
+      storage.delete({
+        key: PROGRESS_PREFIX + id,
+        success: function () { router.back() },
+        fail: function () { router.back() }
+      })
+    }
+    storage.delete({ key: QUIZ_PREFIX + id, success: deleteProgress, fail: deleteProgress })
+  },
+
+  chooseCards() {
+    this.chooseMode('cards')
+  },
+
+  chooseQuiz() {
+    if (!this.quizOn) return
+    this.chooseMode('quiz')
+  },
+
+  // Saves the mode (shared by all decks) and goes back to the study page, which reads it on show.
+  chooseMode(mode) {
+    storage.set({
+      key: MODE_KEY,
+      value: mode,
+      success: function () { router.back() },
+      fail: function () { router.back() }
+    })
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 22px 8px 0 14px;
+}
+
+.back {
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 24px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.back-label {
+  font-size: 22px;
+  color: #bf5af2;
+}
+
+.modes {
+  height: 48px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.mode {
+  width: 82px;
+  height: 48px;
+  border-radius: 24px;
+  background-color: #1c1c1e;
+  justify-content: center;
+  align-items: center;
+}
+
+.mode-on {
+  background-color: #bf5af2;
+}
+
+.mode-off {
+  background-color: #111113;
+}
+
+.mode-label {
+  font-size: 20px;
+  color: #ffffff;
+}
+
+.label-off {
+  color: #48484a;
+}
+
+.list {
+  flex: 1;
+  flex-direction: column;
+}
+
+.title-item {
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0 0 0;
+}
+
+.title {
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.quiz-note {
+  font-size: 14px;
+  color: #ff9f0a;
+  text-align: center;
+}
+
+.head-item {
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0 14px 0;
+}
+
+.big {
+  font-size: 44px;
+  font-weight: bold;
+  color: #32d74b;
+}
+
+.sub {
+  font-size: 17px;
+  color: #aeaeb2;
+  text-align: center;
+}
+
+.bar {
+  width: 150px;
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 5px;
+  background-color: #2c2c2e;
+}
+
+.fill {
+  height: 10px;
+  border-radius: 5px;
+  background-color: #32d74b;
+}
+
+.row {
+  height: 40px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.row-label {
+  font-size: 19px;
+  color: #d1d1d6;
+}
+
+.row-value {
+  font-size: 19px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.reset-item {
+  padding: 16px 0 0 0;
+}
+
+.reset {
+  width: 100%;
+  height: 52px;
+  border-radius: 20px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.warn {
+  background-color: #ff453a;
+}
+
+.reset-label {
+  font-size: 18px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.end-item {
+  height: 60px;
+}
+
+.end {
+  font-size: 12px;
+}
+</style>

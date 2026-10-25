@@ -191,3 +191,21 @@ ul.catalog .name small { white-space: normal; }
 #h-summary .name small { white-space: normal; }
 .card h3 { font-size: 13px; color: var(--muted); margin: 16px 0 6px; }
 button.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
+/* Flashcards deck editor (src/decks/ui.ts) */
+.deck-bar { margin-top: 10px; gap: 8px; }
+.deck-bar select { flex: 1; min-width: 0; }
+input[type='text'].deck-name { margin-top: 10px; font: 600 15px var(--sans); }
+.deck-problems { margin-top: 8px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 40%, transparent); background: color-mix(in srgb, var(--err) 8%, transparent); }
+.deck-problems ul { margin: 4px 0 0; padding-left: 18px; }
+.deck-cards { max-height: 440px; overflow-y: auto; margin-top: 8px; }
+.deck-card { display: grid; grid-template-columns: 2.2em 1fr 1fr 1fr auto; gap: 6px; align-items: center; padding: 3px 0; }
+.deck-card input[type='text'] { font: 14px var(--sans); padding: 8px 10px; min-width: 0; }
+.deck-num { font: 12px var(--mono); color: var(--muted); text-align: right; }
+.deck-editor [aria-invalid='true'] { border-color: var(--err); outline-color: var(--err); }
+.deck-import { margin-top: 12px; }
+.deck-paste-label { font-weight: 400; color: var(--muted); font-size: 13px; margin-top: 8px; }
+.deck-import textarea { width: 100%; font: 13px var(--mono); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
+@media (max-width: 640px) {
+  .deck-card { grid-template-columns: 2.2em 1fr auto; }
+  .deck-card input[data-field='back'], .deck-card input[data-field='note'] { grid-column: 2; }
+}

@@ -56,7 +56,7 @@ export async function buildNotesRpk(
  * Rewrites versionCode in manifest.json / manifest-watch.json, so every re-pack is a newer
  * version and the band treats it as an update rather than a reinstall of version 1.
  */
-function bumpVersionCode(template: Uint8Array, versionCode: number): Record<string, Uint8Array> {
+export function bumpVersionCode(template: Uint8Array, versionCode: number): Record<string, Uint8Array> {
   const names = ['manifest.json', 'manifest-watch.json'];
   const files = unzipSync(template, { filter: (f) => names.includes(f.name) });
   const out: Record<string, Uint8Array> = {};
