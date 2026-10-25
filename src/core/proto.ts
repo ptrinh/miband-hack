@@ -12,6 +12,7 @@ message Command {
   optional Account auth = 3;
   optional System system = 4;
   optional Watchface watchface = 6;
+  optional Health health = 10;
   optional Rpk rpk = 22;
   optional DataUpload dataUpload = 24;
   optional uint32 status = 100;
@@ -68,6 +69,16 @@ message DeviceInfo {
   optional string firmware = 2;
   optional string unknown3 = 3;
   optional string model = 4;
+}
+
+// wear_fitness.proto
+message Health {
+  optional bytes activityRequestFileIds = 2;
+  optional bytes activitySyncAckFileIds = 3;
+  optional ActivitySyncRequestToday activitySyncRequestToday = 5;
+}
+message ActivitySyncRequestToday {
+  optional uint32 unknown1 = 1;
 }
 
 message Watchface {
@@ -159,6 +170,11 @@ export interface Command {
     watchfaceId?: string;
     installStatus?: number;
     watchfaceInstallStart?: { id?: string; size?: number };
+  };
+  health?: {
+    activityRequestFileIds?: Uint8Array;
+    activitySyncAckFileIds?: Uint8Array;
+    activitySyncRequestToday?: { unknown1?: number };
   };
   rpk?: {
     rpkList?: { rpkInfo?: RpkInfoList[] };

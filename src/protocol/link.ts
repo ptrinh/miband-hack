@@ -8,6 +8,8 @@ export interface Link {
   onReadyForAuth: () => void;
   /** Decrypted protobuf command bytes from the band. */
   onCommand: (bytes: Uint8Array) => void;
+  /** Decrypted bytes from the activity channel: one chunk of a recorded health file. */
+  onActivity: (bytes: Uint8Array) => void;
   onClose: () => void;
   log: (msg: string) => void;
 

@@ -1,0 +1,10 @@
+{
+  "name": "miband-health-mcp",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Local MCP server over MiBand Hack health exports (stdio, no dependencies)",
+  "license": "AGPL-3.0-or-later",
+  "bin": { "miband-health-mcp": "server.js" },
+  "engines": { "node": ">=22.18" }
+}

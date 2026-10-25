@@ -62,6 +62,10 @@ A proxy is needed because Xiaomi's API does not let browsers call it directly (C
 
 > **Unverified:** whether the key from the Mi Home cloud really is the Mi Band's auth key (beaconkeys of BLE sensors are usually only 24 hex long). The UI warns if the key is not 32 hex.
 
+## Health data
+
+Download what the band recorded (steps, heart rate, sleep, SpO₂, stress, workouts) as JSON, CSV or raw files, query it with your own AI agent through a local MCP server ([`tools/health-mcp`](tools/health-mcp/README.md)), or opt in to a cloud API with per-user keys. Format, API, privacy and what is still untested: [docs/health-data.md](docs/health-data.md).
+
 ## Deploy
 
 One Worker serves both the static page (`dist/`) and `/api/*`, on the custom domain `miband.trinh.uk`:
