@@ -1,0 +1,9 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+# Xiaomi's SDK, downloaded by ./fetch-sdk.sh (proprietary, not redistributed here)
+app/libs/*.aar
+# made by ./make-keystore.sh from ../../../src/rpk/demo-key
+keystore/

@@ -47,7 +47,9 @@ MiBand Hack lấp chỗ trống đó: mở một trang web là cài được.
 | Snake | Game rắn săn mồi: vuốt hoặc chạm nửa trái/phải để rẽ, nhanh dần, lưu điểm cao nhất | `demo-apps/snake` |
 | SAT Flashcards | Học 372 từ vựng SAT: lật thẻ, Know it / Again, ôn lặp ngắt quãng (hộp Leitner), tiến độ lưu trên band | `demo-apps/sat-flashcards` |
 
-Cả bốn build bằng `aiot-toolkit` 2.0.5 (toolchain chính thức của Xiaomi Vela). **Chưa app nào được chạy thử trên band thật.**
+Ngoài catalog: **Phone Remote** (`demo-apps/phone-remote`) — bấm trên band để chụp ảnh, chuyển slide, play/pause trên điện thoại. Cần app Android đi kèm (cùng package, cùng chữ ký) và Mi Fitness để chuyển tin nhắn qua `system.interconnect`; chưa kiểm chứng trên Mi Band 9/10 nên chưa đưa vào catalog.
+
+Cả năm app trong catalog build bằng `aiot-toolkit` 2.0.5 (toolchain chính thức của Xiaomi Vela). **Chưa app nào được chạy thử trên band thật.**
 
 `src/rpk/` là bản port định dạng chữ ký "RPK Sig Block 42" của aiot-toolkit (biến thể APK Signature Scheme v2, RSA PKCS#1 v1.5 + SHA-256) sang WebCrypto. Test xác nhận chữ ký **giống từng byte** với bản toolkit ký. Notes được ký bằng một key demo **cố ý công khai** (`src/rpk/demo-key/`).
 
