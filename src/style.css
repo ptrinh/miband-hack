@@ -156,4 +156,30 @@ ul.catalog .name small { white-space: normal; }
 .note-row textarea { grid-column: 1; width: 100%; font: 14px var(--sans); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
 .note-row button { grid-column: 2; grid-row: 1; align-self: center; }
 .notes-actions { margin-top: 10px; gap: 8px; }
+.catalog-open {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left;
+  font: inherit; color: inherit; background: transparent; border: 0; border-radius: 12px; padding: 4px; margin: -4px;
+}
+.catalog-open:hover:not(:disabled) { background: var(--bg); }
+.catalog-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.catalog-open .name { display: block; font-weight: 600; }
+.app-dialog {
+  width: min(560px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 0;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+.app-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+.app-dialog-body { padding: 20px; }
+.app-dialog-head { display: flex; align-items: center; gap: 12px; }
+.app-dialog-head h3 { flex: 1; min-width: 0; margin: 0; font-size: 18px; line-height: 1.25; }
+.app-dialog-head h3 small { display: block; font: 400 12px var(--mono); color: var(--muted); margin-top: 2px; }
+.app-dialog-body > p { margin: 12px 0 0; }
+.shots {
+  display: flex; gap: 12px; justify-content: safe center; overflow-x: auto; scroll-snap-type: x mandatory;
+  margin-top: 14px; padding: 4px 2px 8px; border-radius: 10px;
+}
+.shots img { flex: none; width: 150px; height: auto; scroll-snap-align: start; }
+.shots:focus-visible { outline: 2px solid var(--accent); }
+@media (max-width: 480px) { .shots img { width: 132px; } }
+.app-dialog-actions { margin-top: 14px; }
 .hidden { display: none !important; }

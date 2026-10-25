@@ -1,0 +1,63 @@
+<!-- ux: demo-apps/drawing/src/pages/index/index.ux -->
+<!-- State: a small doodle made with the app's own stroke engine (sketch.js), yellow picked, middle brush size. -->
+<div class="page">
+  <div id="area" class="area"></div>
+  <div class="toolbar">
+    <div class="row" id="swatches"></div>
+    <div class="row">
+      <div class="tool">
+        <div class="size-dot" style="width: 8px; height: 8px; border-radius: 4px; background-color: #ffd60a;"></div>
+      </div>
+      <div class="tool"><text class="tool-label">Erase</text></div>
+      <div class="tool"><text class="tool-label">Undo</text></div>
+      <div class="tool"><text class="tool-label">Clear</text></div>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { COLORS, createSketch, beginStroke, extendStroke, endStroke } from '/demo-apps/drawing/src/common/sketch.js';
+  const [WHITE, RED, YELLOW, GREEN, BLUE] = COLORS;
+  const sk = createSketch();
+  const stroke = (pts, size, color) => {
+    beginStroke(sk, pts[0][0], pts[0][1], size, color);
+    for (const [x, y] of pts.slice(1)) extendStroke(sk, x, y, size, color);
+    endStroke(sk);
+  };
+  const arc = (cx, cy, r, a0, a1, n = 40) =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const a = a0 + ((a1 - a0) * i) / n;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    });
+  // Sun with rays
+  stroke(arc(132, 78, 22, 0, Math.PI * 2), 8, YELLOW);
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    stroke([[132 + 32 * Math.cos(a), 78 + 32 * Math.sin(a)], [132 + 42 * Math.cos(a), 78 + 42 * Math.sin(a)]], 4, YELLOW);
+  }
+  // "Hi" and a heart
+  stroke([[34, 150], [34, 200]], 8, WHITE);
+  stroke([[34, 175], [62, 175]], 8, WHITE);
+  stroke([[62, 150], [62, 200]], 8, WHITE);
+  stroke([[84, 172], [84, 200]], 8, WHITE);
+  stroke([[84, 154], [84, 156]], 8, WHITE);
+  stroke([...arc(128, 176, 11, Math.PI, Math.PI * 2, 16), ...arc(150, 176, 11, Math.PI, Math.PI * 2, 16), [139, 206], [117, 176]], 4, RED);
+  // Waves and grass
+  stroke(Array.from({ length: 41 }, (_, i) => [12 + i * 4.2, 262 + 8 * Math.sin(i / 3)]), 8, BLUE);
+  stroke(Array.from({ length: 41 }, (_, i) => [12 + i * 4.2, 300 + 6 * Math.sin(i / 2.5 + 1)]), 14, GREEN);
+
+  const area = document.getElementById('area');
+  for (const d of sk.dots) {
+    const el = document.createElement('div');
+    el.className = 'dot';
+    Object.assign(el.style, { left: `${d.x}px`, top: `${d.y}px`, width: `${d.s}px`, height: `${d.s}px`, borderRadius: `${d.s / 2}px`, backgroundColor: d.c });
+    area.appendChild(el);
+  }
+  const swatches = document.getElementById('swatches');
+  for (const c of COLORS) {
+    const el = document.createElement('div');
+    el.className = c === YELLOW ? 'swatch picked' : 'swatch';
+    el.style.backgroundColor = c;
+    swatches.appendChild(el);
+  }
+  document.title += ` (${sk.dots.length} dots)`;
+</script>

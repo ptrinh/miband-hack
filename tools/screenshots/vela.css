@@ -1,0 +1,58 @@
+/*
+ * Approximates the Xiaomi Vela JS layout model in a browser, so a page's own .ux <style> can be
+ * applied unchanged. Sources: Vela quick app docs, "通用样式" (general styles) and the text component.
+ *  - Every element is a flex container (JS apps only support flex). flex-direction defaults to ROW
+ *    (per the docs: "默认为横向 row"), not column: the demo apps set column explicitly where they need it.
+ *  - Lengths are design px (manifest designWidth 192); the band scales them to its screen width.
+ *  - position: absolute is relative to the parent element.
+ *  - <text>: default font-size 30px, colour rgba(0,0,0,0.54) (every demo app sets its own).
+ * Rules use :where() so they have zero specificity and the app's class rules always win.
+ *
+ * The frame (#device / #screen) is a simplified Mi Band 10: 1.72" AMOLED, 212 x 520 px, which at
+ * designWidth 192 is 192 x 471 design px (520 * 192 / 212 = 470.9).
+ */
+html, body { margin: 0; background: transparent; }
+
+#device {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 9px;
+  border-radius: 49px;
+  background: linear-gradient(160deg, #3a3a3e 0%, #1c1c1f 45%, #0e0e10 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+
+#screen {
+  position: relative;
+  display: flex;
+  width: 192px;
+  height: 471px;
+  border-radius: 40px;
+  overflow: hidden;
+  background: #000;
+  font-family: 'MiSans', 'MiSans VF', -apple-system, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#screen script { display: none; }
+
+:where(#screen *:not(script)) {
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+}
+
+:where(#screen text) {
+  display: block;
+  font-size: 30px;
+  color: rgba(0, 0, 0, 0.54);
+  line-height: 1.15; /* not documented for Vela; 1.15 keeps one line inside the boxes the apps size for it */
+  overflow-wrap: break-word;
+}
+
+:where(#screen list) { flex-direction: column; overflow: hidden; }
+:where(#screen list-item) { flex-shrink: 0; }

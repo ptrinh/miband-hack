@@ -14,7 +14,17 @@
         "Mi Band 9",
         "Mi Band 10"
       ],
-      "source": "demo-apps/calculator"
+      "source": "demo-apps/calculator",
+      "screenshots": [
+        {
+          "src": "apps/screens/calculator-1.png",
+          "alt": {
+            "en": "Calculator: 12 × pending, 36 typed, with the keypad",
+            "zh": "计算器：已输入 12 ×，正在输入 36，下方是按键",
+            "vi": "Máy tính: đang tính 12 ×, vừa gõ 36, bên dưới là bàn phím"
+          }
+        }
+      ]
     },
     {
       "id": "uk.trinh.miband.drawing",
@@ -30,7 +40,17 @@
         "Mi Band 9",
         "Mi Band 10"
       ],
-      "source": "demo-apps/drawing"
+      "source": "demo-apps/drawing",
+      "screenshots": [
+        {
+          "src": "apps/screens/drawing-1.png",
+          "alt": {
+            "en": "Drawing: a sun, “Hi”, a heart and waves, with the colour and tool bar",
+            "zh": "绘画：太阳、“Hi”、爱心和波浪，下方是颜色和工具栏",
+            "vi": "Vẽ: mặt trời, chữ “Hi”, trái tim và sóng, bên dưới là thanh màu và công cụ"
+          }
+        }
+      ]
     },
     {
       "id": "uk.trinh.miband.notes",
@@ -47,7 +67,25 @@
         "Mi Band 10"
       ],
       "source": "demo-apps/notes",
-      "customize": "notes"
+      "customize": "notes",
+      "screenshots": [
+        {
+          "src": "apps/screens/notes-1.png",
+          "alt": {
+            "en": "Notes: the list of three sample notes",
+            "zh": "笔记：三条示例笔记的列表",
+            "vi": "Notes: danh sách ba note mẫu"
+          }
+        },
+        {
+          "src": "apps/screens/notes-2.png",
+          "alt": {
+            "en": "Notes: a shopping list opened, with a Back button",
+            "zh": "笔记：打开的购物清单，带返回按钮",
+            "vi": "Notes: mở danh sách mua sắm, có nút Back"
+          }
+        }
+      ]
     },
     {
       "id": "uk.trinh.miband.snake",
@@ -63,7 +101,17 @@
         "Mi Band 9",
         "Mi Band 10"
       ],
-      "source": "demo-apps/snake"
+      "source": "demo-apps/snake",
+      "screenshots": [
+        {
+          "src": "apps/screens/snake-1.png",
+          "alt": {
+            "en": "Snake mid-game: score 7, best 23, the snake heading for the food",
+            "zh": "贪吃蛇游戏中：得分 7，最高 23，蛇正游向食物",
+            "vi": "Snake đang chơi: 7 điểm, cao nhất 23, rắn đang bò tới mồi"
+          }
+        }
+      ]
     },
     {
       "id": "uk.trinh.miband.sat",
@@ -79,7 +127,33 @@
         "Mi Band 9",
         "Mi Band 10"
       ],
-      "source": "demo-apps/sat-flashcards"
+      "source": "demo-apps/sat-flashcards",
+      "screenshots": [
+        {
+          "src": "apps/screens/sat-1.png",
+          "alt": {
+            "en": "SAT Flashcards: front of a new card, “meticulous”",
+            "zh": "SAT 单词卡：新卡片正面，“meticulous”",
+            "vi": "SAT Flashcards: mặt trước thẻ mới, “meticulous”"
+          }
+        },
+        {
+          "src": "apps/screens/sat-2.png",
+          "alt": {
+            "en": "SAT Flashcards: the card flipped, definition and example, Again and Know it buttons",
+            "zh": "SAT 单词卡：翻面后的释义和例句，以及 Again 和 Know it 按钮",
+            "vi": "SAT Flashcards: thẻ đã lật, nghĩa và ví dụ, nút Again và Know it"
+          }
+        },
+        {
+          "src": "apps/screens/sat-3.png",
+          "alt": {
+            "en": "SAT Flashcards: progress page, 48 of 372 words learned",
+            "zh": "SAT 单词卡：进度页，已掌握 372 个单词中的 48 个",
+            "vi": "SAT Flashcards: trang tiến độ, đã thuộc 48 trên 372 từ"
+          }
+        }
+      ]
     }
   ]
 }
