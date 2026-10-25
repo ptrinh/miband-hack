@@ -149,4 +149,10 @@ ul.catalog .name small { white-space: normal; }
 .lang-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
 .lang-switch button { border: 0; border-radius: 999px; padding: 3px 10px; font-size: 12px; background: transparent; color: var(--muted); }
 .lang-switch button.on { background: var(--ink); color: var(--panel); }
+.notes-editor { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg); }
+.note-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.note-row:first-child { border-top: 0; }
+.note-row input { grid-column: 1; }
+.note-row textarea { grid-column: 1; width: 100%; font: 14px var(--sans); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
+.note-row button { grid-column: 2; grid-row: 1; align-self: center; }
 .hidden { display: none !important; }

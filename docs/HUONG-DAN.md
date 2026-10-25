@@ -60,6 +60,10 @@ Mỗi chiếc band có một chìa khoá riêng do Xiaomi cấp. Không có chì
 
 **Cách nhanh nhất:** ở mục **"App mẫu"**, bấm **Add** cạnh app bạn muốn (ví dụ *Calculator*). Đợi thanh tiến độ chạy hết là xong, app sẽ hiện trong danh sách ứng dụng trên band.
 
+**App Notes (note của riêng bạn):** bấm **Edit notes / Sửa note** cạnh app Notes, gõ tiêu đề và nội dung từng note (thêm bao nhiêu cũng được), rồi bấm **Add**. Trên band: danh sách note → bấm vào để đọc → nút **Back** để quay lại. Muốn đổi nội dung thì sửa lại trên trang rồi bấm **Add** lần nữa. Note được lưu trên trình duyệt của bạn.
+
+**Đổi ngôn ngữ:** nút **EN · 中文 · VI** ở góc trên.
+
 **Cài file của riêng bạn:** kéo thả file `.rpk` (app) hoặc `.bin` (mặt đồng hồ) vào ô **"Hoặc cài file của bạn"**, rồi bấm **Cài lên band**.
 
 **Gỡ app / đổi mặt đồng hồ:** dùng danh sách **"App trên band"** và **"Watchface"** ở cuối trang.

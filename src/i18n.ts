@@ -149,7 +149,16 @@ const en = {
   errTooBig: 'File is larger than 128 MB',
   errFaceV3: 'v3 watchfaces are not supported yet',
   errFirmware: 'This is a firmware image — flashing firmware is not supported (brick risk)',
-  errUnknownFormat: 'Unrecognized format (expected .rpk or watchface .bin)',
+  errUnknownFormat: 'Unrecognized format (expected .rpk or watchface .bin)',  notesEdit: "Edit notes",
+  notesHide: "Close editor",
+  notesTitlePh: "Title",
+  notesBodyPh: "Content",
+  notesAdd: "+ Add note",
+  notesRemove: "Remove",
+  notesHint: "Notes are saved in this browser. Press Add to put them on the band (read-only there). Edit and press Add again any time to update.",
+  notesBuilding: "Packing your notes…",
+  notesSample1Title: "Welcome",
+  notesSample1Body: "Edit these notes on miband.trinh.uk, then press Add.",
 };
 
 export type Key = keyof typeof en;
@@ -292,7 +301,16 @@ const zh: Record<Key, string> = {
   errTooBig: '文件大于 128 MB',
   errFaceV3: '暂不支持 v3 格式表盘',
   errFirmware: '这是固件镜像——不支持刷写固件（有变砖风险）',
-  errUnknownFormat: '无法识别的格式（需要 .rpk 或表盘 .bin）',
+  errUnknownFormat: '无法识别的格式（需要 .rpk 或表盘 .bin）',  notesEdit: "编辑笔记",
+  notesHide: "关闭编辑器",
+  notesTitlePh: "标题",
+  notesBodyPh: "内容",
+  notesAdd: "+ 添加笔记",
+  notesRemove: "删除",
+  notesHint: "笔记保存在此浏览器中。点击“添加”即可放到手环上（手环上只读）。随时编辑后再次点击“添加”即可更新。",
+  notesBuilding: "正在打包您的笔记…",
+  notesSample1Title: "欢迎",
+  notesSample1Body: "在 miband.trinh.uk 上编辑这些笔记，然后点击“添加”。",
 };
 
 const vi: Record<Key, string> = {
@@ -433,7 +451,16 @@ const vi: Record<Key, string> = {
   errTooBig: 'File lớn hơn 128 MB',
   errFaceV3: 'Watchface định dạng v3 chưa được hỗ trợ',
   errFirmware: 'Đây là firmware — không hỗ trợ flash firmware (rủi ro brick)',
-  errUnknownFormat: 'Không nhận ra định dạng (cần .rpk hoặc watchface .bin)',
+  errUnknownFormat: 'Không nhận ra định dạng (cần .rpk hoặc watchface .bin)',  notesEdit: "Sửa note",
+  notesHide: "Đóng khung soạn",
+  notesTitlePh: "Tiêu đề",
+  notesBodyPh: "Nội dung",
+  notesAdd: "+ Thêm note",
+  notesRemove: "Xoá",
+  notesHint: "Note được lưu trên trình duyệt này. Bấm Add để đưa lên band (trên band chỉ xem). Sửa xong bấm Add lại để cập nhật.",
+  notesBuilding: "Đang đóng gói note…",
+  notesSample1Title: "Chào bạn",
+  notesSample1Body: "Sửa các note này trên miband.trinh.uk rồi bấm Add.",
 };
 
 const DICTS: Record<Lang, Record<Key, string>> = { en, zh, vi };

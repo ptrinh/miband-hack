@@ -1,0 +1,82 @@
+<template>
+  <div class="page">
+    <text class="header">Notes</text>
+    <text if="{{state === 'loading'}}" class="info">Loading…</text>
+    <text elif="{{state === 'error'}}" class="info">Cannot read notes</text>
+    <text elif="{{notes.length === 0}}" class="info">No notes</text>
+    <list else class="list">
+      <list-item type="note" class="item" for="{{(i, n) in notes}}" onclick="open(i)">
+        <text class="title">{{n.title}}</text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import { loadNotes } from '../../common/notes.js'
+
+export default {
+  private: {
+    state: 'loading',
+    notes: []
+  },
+
+  onInit() {
+    var self = this
+    loadNotes(function (err, notes) {
+      self.notes = notes
+      self.state = err ? 'error' : 'ready'
+    })
+  },
+
+  open(i) {
+    router.push({ uri: 'pages/detail', params: { index: i } })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 24px 8px 0 8px;
+}
+
+.header {
+  height: 40px;
+  font-size: 24px;
+  color: #ffb340;
+  text-align: center;
+}
+
+.info {
+  margin-top: 60px;
+  font-size: 22px;
+  color: #8a8a8e;
+  text-align: center;
+}
+
+.list {
+  flex: 1;
+  flex-direction: column;
+}
+
+.item {
+  min-height: 64px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background-color: #1f1f22;
+  align-items: center;
+}
+
+.title {
+  font-size: 22px;
+  color: #ffffff;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+</style>

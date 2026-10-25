@@ -49,6 +49,8 @@ src/
   protocol/
     stream-link.ts     SPP V1/V2: dò phiên bản, sliding window, ack/nack, gửi lại
     ble-v1-link.ts     Giao thức chunk của Mi Band 8
+  rpk/                 Đóng gói lại + ký lại .rpk trong trình duyệt (dùng cho Notes)
+  i18n.ts              Từ điển EN / 中文 / VI và hàm t()
 worker/
   index.ts             Phục vụ dist/ + API /api/xiaomi/qr, /api/xiaomi/poll
   xiaomi-cloud.ts      Đăng nhập QR Xiaomi, ký request RC4, lấy BLE key
@@ -79,4 +81,10 @@ Tài liệu giao thức (rất nên đọc trước khi sửa `core/` hay `proto
 
 1. Đặt mã nguồn vào `demo-apps/<tên>/`, có README ghi cách build.
 2. Copy file `.rpk` và icon vào `public/apps/`.
-3. Thêm một mục vào `public/apps/catalog.json`.
+3. Thêm một mục vào `public/apps/catalog.json` (`description` có thể là chuỗi hoặc `{en, zh, vi}`).
+
+Mỗi app mẫu có `node_modules` riêng khoảng 355 MB (aiot-toolkit). Build xong thì xoá đi nếu máy chật ổ đĩa.
+
+## Thêm chữ cho giao diện
+
+Mọi chữ hiển thị nằm trong `src/i18n.ts`, mỗi key phải có đủ 3 ngôn ngữ `en`, `zh`, `vi` (TypeScript báo lỗi nếu thiếu).

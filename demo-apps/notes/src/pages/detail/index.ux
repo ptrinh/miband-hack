@@ -1,0 +1,110 @@
+<template>
+  <div class="page">
+    <div class="back" onclick="goBack">
+      <text class="back-label">‹ Back</text>
+    </div>
+    <list class="list">
+      <list-item type="title" class="title-item">
+        <text class="title">{{title}}</text>
+      </list-item>
+      <list-item type="para" class="para-item" for="{{p in paras}}">
+        <text class="para">{{p.t}}</text>
+      </list-item>
+      <list-item type="end" class="end-item">
+        <text class="end"> </text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import { loadNotes, paragraphs } from '../../common/notes.js'
+
+export default {
+  // router params
+  protected: {
+    index: 0
+  },
+
+  private: {
+    title: '',
+    paras: []
+  },
+
+  onInit() {
+    var self = this
+    var idx = parseInt(this.index, 10) || 0
+    loadNotes(function (err, notes) {
+      var n = notes[idx]
+      if (!n) {
+        self.title = err ? 'Cannot read notes' : 'No notes'
+        self.paras = []
+        return
+      }
+      self.title = n.title
+      self.paras = paragraphs(n.body)
+    })
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+  padding: 22px 8px 0 8px;
+}
+
+.back {
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 24px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.back-label {
+  font-size: 22px;
+  color: #ffb340;
+}
+
+.list {
+  flex: 1;
+  flex-direction: column;
+}
+
+.title-item {
+  padding: 4px 4px 8px 4px;
+}
+
+.title {
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.para-item {
+  padding: 0 4px;
+}
+
+.para {
+  font-size: 20px;
+  color: #d1d1d6;
+}
+
+.end-item {
+  height: 60px;
+}
+
+.end {
+  font-size: 12px;
+}
+</style>

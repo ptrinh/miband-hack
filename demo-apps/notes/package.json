@@ -1,0 +1,19 @@
+{
+  "name": "miband-notes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read-only Notes quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app); notes live in /common/notes.json and can be swapped in the browser",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "aiot build",
+    "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
+    "release": "npm run presign && aiot release",
+    "publish-demo": "npm run release && cp dist/uk.trinh.miband.notes.release.1.0.0.rpk ../../public/apps/notes.rpk && cp src/common/logo.png ../../public/apps/notes.png"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "2.0.5"
+  }
+}

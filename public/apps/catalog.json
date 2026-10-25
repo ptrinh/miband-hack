@@ -31,6 +31,23 @@
         "Mi Band 10"
       ],
       "source": "demo-apps/drawing"
+    },
+    {
+      "id": "uk.trinh.miband.notes",
+      "name": "Notes",
+      "description": {
+        "en": "Show your own notes on the band: a list, tap one to read, Back to return. Write them here first.",
+        "zh": "在手环上显示您自己的笔记：列表中点击查看，按返回键回到列表。请先在这里编写。",
+        "vi": "Hiện note của bạn trên band: danh sách, bấm để đọc, nút Back để quay lại. Soạn note ngay tại đây."
+      },
+      "file": "apps/notes.rpk",
+      "icon": "apps/notes.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/notes",
+      "customize": "notes"
     }
   ]
 }

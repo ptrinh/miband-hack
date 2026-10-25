@@ -8,6 +8,7 @@ import { StreamLink } from './protocol/stream-link';
 import { requestBle, webBluetoothAvailable } from './transport/ble';
 import { SerialTransport, webSerialAvailable } from './transport/serial';
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
+import { buildNotesRpk, notesVersionCode, type Note } from './rpk';
 
 const KEY_STORAGE = 'miband-hack.authkey';
 
@@ -106,6 +107,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <section class="card span-2" id="card-catalog">
       <h2><span class="step">3</span><span data-i18n="catalogTitle"></span></h2>
       <ul class="list catalog" id="catalog"><li class="empty" data-i18n="catalogLoading"></li></ul>
+      <div id="notes-editor" class="notes-editor hidden">
+        <p class="hint" data-i18n="notesHint"></p>
+        <div id="notes-list"></div>
+        <button class="small" id="btn-note-add" data-i18n="notesAdd"></button>
+      </div>
       <p class="hint" id="catalog-hint" data-i18n-html="catalogHint"></p>
     </section>
 
@@ -475,7 +481,7 @@ drop.ondrop = (e) => {
 
 // ---------------------------------------------------------------- catalog ---
 
-interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[] }
+interface CatalogApp { id: string; name: string; description: string | Record<string, string>; file: string; icon?: string; devices?: string[]; customize?: 'notes' }
 
 let catalog: CatalogApp[] = [];
 let catalogBusy = false;
@@ -508,7 +514,20 @@ function renderCatalog(): void {
     const installed = installedIds.has(app.id);
     const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy);
     if (!installed) btn.classList.add('primary');
-    li.append(icon, name, btn);
+    li.append(icon, name);
+    if (app.customize === 'notes') {
+      const open = !$('notes-editor').classList.contains('hidden');
+      const edit = document.createElement('button');
+      edit.className = 'small';
+      edit.textContent = open ? t('notesHide') : t('notesEdit');
+      edit.onclick = () => {
+        $('notes-editor').classList.toggle('hidden');
+        renderNotesEditor();
+        renderCatalog();
+      };
+      li.append(edit);
+    }
+    li.append(btn);
     ul.appendChild(li);
   }
   $('catalog-hint').classList.toggle('hidden', connected);
@@ -527,7 +546,12 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
     label.textContent = t('downloading');
     const r = await fetch(app.file);
     if (!r.ok) throw new Error(t('downloadFailed', { file: app.file, status: r.status }));
-    const parsed = parseFile(new Uint8Array(await r.arrayBuffer()));
+    let bytes: Uint8Array = new Uint8Array(await r.arrayBuffer());
+    if (app.customize === 'notes') {
+      label.textContent = t('notesBuilding');
+      bytes = await buildNotesRpk(bytes, notes.filter((n) => n.title.trim() || n.body.trim()), undefined, { versionCode: notesVersionCode() });
+    }
+    const parsed = parseFile(bytes);
     if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : t('notRpk'));
     pending = parsed;
     await device.install(parsed, (pct, stage) => {
@@ -545,6 +569,77 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
     render();
   }
 }
+
+// ------------------------------------------------------------------ notes ---
+
+const NOTES_STORAGE = 'miband-hack.notes';
+
+function loadNotes(): Note[] {
+  try {
+    const raw = localStorage.getItem(NOTES_STORAGE);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Note[];
+      if (Array.isArray(parsed)) return parsed.filter((n) => typeof n?.title === 'string' && typeof n?.body === 'string');
+    }
+  } catch {
+    /* storage blocked or corrupt */
+  }
+  return [{ title: t('notesSample1Title'), body: t('notesSample1Body') }];
+}
+
+let notes: Note[] = loadNotes();
+
+function saveNotes(): void {
+  try {
+    localStorage.setItem(NOTES_STORAGE, JSON.stringify(notes));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Re-renders the note rows; only called on add/remove/language change so typing keeps focus. */
+function renderNotesEditor(): void {
+  const box = $('notes-list');
+  box.replaceChildren();
+  notes.forEach((note, i) => {
+    const row = document.createElement('div');
+    row.className = 'note-row';
+    const title = document.createElement('input');
+    title.type = 'text';
+    title.placeholder = t('notesTitlePh');
+    title.value = note.title;
+    title.maxLength = 80;
+    title.oninput = () => {
+      notes[i].title = title.value;
+      saveNotes();
+    };
+    const body = document.createElement('textarea');
+    body.placeholder = t('notesBodyPh');
+    body.value = note.body;
+    body.rows = 3;
+    body.oninput = () => {
+      notes[i].body = body.value;
+      saveNotes();
+    };
+    const del = document.createElement('button');
+    del.className = 'small ghost';
+    del.textContent = t('notesRemove');
+    del.onclick = () => {
+      notes.splice(i, 1);
+      saveNotes();
+      renderNotesEditor();
+    };
+    row.append(title, body, del);
+    box.appendChild(row);
+  });
+}
+
+$('btn-note-add').onclick = () => {
+  notes.push({ title: '', body: '' });
+  saveNotes();
+  renderNotesEditor();
+  ($('notes-list').lastElementChild?.querySelector('input') as HTMLInputElement | null)?.focus();
+};
 
 // ------------------------------------------------------- key from cloud ---
 
@@ -674,6 +769,7 @@ function renderLangSwitch(): void {
 function localize(): void {
   applyI18n();
   setQrLink();
+  renderNotesEditor();
   renderLangSwitch();
   renderSupport();
   render();
