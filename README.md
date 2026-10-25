@@ -64,7 +64,7 @@ A proxy is needed because Xiaomi's API does not let browsers call it directly (C
 
 ## Health data
 
-Download what the band recorded (steps, heart rate, sleep, SpO₂, stress, workouts) as JSON, CSV or raw files, query it with your own AI agent through a local MCP server ([`tools/health-mcp`](tools/health-mcp/README.md)), or opt in to a cloud API with per-user keys. Format, API, privacy and what is still untested: [docs/health-data.md](docs/health-data.md).
+Download what the band recorded (steps, heart rate, sleep, SpO₂, stress, workouts) as JSON, CSV or raw files, query it with your own AI agent through a local MCP server ([`tools/health-mcp`](tools/health-mcp/README.md)) Nothing leaves your machine. Format, privacy and what is still untested: [docs/health-data.md](docs/health-data.md).
 
 ## Deploy
 

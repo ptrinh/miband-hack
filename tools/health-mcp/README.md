@@ -56,8 +56,8 @@ Common arguments: `from`, `to` (`YYYY-MM-DD` = whole UTC days, or ISO 8601), `da
 default is the band's timezone). Responses are capped at 5000 points.
 
 The format and its caveats (what is decoded, units, assumptions) are described in
-[`docs/health-data.md`](../../docs/health-data.md). The same tools are available remotely through
-the opt-in cloud API (`POST /api/health/mcp` with an agent key).
+[`docs/health-data.md`](../../docs/health-data.md).
+Everything runs on your machine; no health data is sent anywhere.
 
 ## Test
 

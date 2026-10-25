@@ -5,7 +5,7 @@
 //
 //   HEALTH_DATA   an export file (miband-health-*.json) or a folder of them; several are merged
 //
-// The tools and queries live in src/health/query.ts (shared with the cloud Worker); Node ≥ 22.18
+// The tools and queries live in src/health/query.ts (shared with the webapp); Node ≥ 22.18
 // loads that TypeScript file directly (type stripping), so run this from a checkout of the repo.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";

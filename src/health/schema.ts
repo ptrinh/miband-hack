@@ -1,5 +1,4 @@
-// "miband-health/1": the one JSON format the webapp exports, the local MCP server reads and the
-// cloud API stores. Every timestamp is an ISO 8601 UTC string ("2026-10-25T07:31:00.000Z").
+// "miband-health/1": the one JSON format the webapp exports and the local MCP server reads. Every timestamp is an ISO 8601 UTC string ("2026-10-25T07:31:00.000Z").
 // Field-by-field description: docs/health-data.md.
 //
 // Types only (no runtime code), so tools/health-mcp can load the modules that import this one
@@ -143,5 +142,5 @@ export interface HealthData {
   workouts: Workout[];
 }
 
-/** The record arrays of HealthData, which is also what the cloud API stores (one row per kind and UTC day). */
+/** The record arrays of HealthData. */
 export type RecordKind = 'activity' | 'heartRate' | 'spo2' | 'stress' | 'respiratoryRate' | 'temperature' | 'daily' | 'sleep' | 'workouts';

@@ -190,11 +190,4 @@ ul.catalog .name small { white-space: normal; }
 #h-summary b { font: 600 14px var(--mono); }
 #h-summary .name small { white-space: normal; }
 .card h3 { font-size: 13px; color: var(--muted); margin: 16px 0 6px; }
-.cloud-explain { font-size: 14px; margin-top: 8px; }
-.cloud-explain ul { padding-left: 20px; margin: 6px 0; }
-.secret { margin: 12px 0; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
-.secret p { margin: 0 0 6px; font-weight: 600; }
-.secret code { display: block; font: 13px var(--mono); word-break: break-all; margin-bottom: 8px; }
-.secret pre { margin-top: 10px; }
 button.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
-#cloud-keys input, #cloud-on input[type='text'], #cloud-off input[type='password'] { width: auto; }

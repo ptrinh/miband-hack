@@ -23,7 +23,7 @@ export interface QueryArgs {
   offset?: number;
 }
 
-/** Where the tools read data from: a loaded export file, or the cloud store for one account. */
+/** Where the tools read data from: a loaded export file. */
 export interface HealthSource {
   /** Data covering at least `range` (it may hold more; the queries filter). */
   load(range: Range): Promise<HealthData>;
@@ -220,35 +220,6 @@ export function records(d: HealthData, a: QueryArgs, now?: number) {
   const limit = Math.min(Math.max(1, Number(a.limit ?? 1000)), MAX_POINTS);
   const offset = Math.max(0, Number(a.offset ?? 0));
   return { kind, total: all.length, offset, limit, items: all.slice(offset, offset + limit), units: d.units };
-}
-
-// ------------------------------------------------------- cloud storage ---
-
-/** The UTC day a record is stored under (by `t`; sleep by `end`, workouts by `start`). */
-export function recordDay(kind: RecordKind, r: Record<string, unknown>): string | null {
-  const t = kind === 'sleep' ? r.end : kind === 'workouts' ? r.start : r.t;
-  return typeof t === 'string' && !Number.isNaN(Date.parse(t)) ? new Date(t).toISOString().slice(0, 10) : null;
-}
-
-/** Identity of a record within its kind: a re-upload replaces the record with the same key. */
-export function recordKey(kind: RecordKind, r: Record<string, unknown>): string {
-  return kind === 'daily' ? String(r.date) : kind === 'sleep' || kind === 'workouts' ? String(r.start) : `${r.t}|${r.source ?? ''}`;
-}
-
-/** Splits an export into the {kind, day, records} chunks the cloud API stores. */
-export function toChunks(d: HealthData): { kind: RecordKind; day: string; records: Record<string, unknown>[] }[] {
-  const out = new Map<string, { kind: RecordKind; day: string; records: Record<string, unknown>[] }>();
-  for (const kind of KINDS) {
-    for (const r of (d[kind] ?? []) as unknown as Record<string, unknown>[]) {
-      const day = recordDay(kind, r);
-      if (!day) continue;
-      const k = `${kind}|${day}`;
-      const c = out.get(k);
-      if (c) c.records.push(r);
-      else out.set(k, { kind, day, records: [r] });
-    }
-  }
-  return [...out.values()];
 }
 
 // --------------------------------------------------------------- tools ---

@@ -3,12 +3,12 @@
 The **Health data** section of the webapp reads what the band has recorded (activity, heart rate,
 sleep, SpO₂, stress, workouts), turns it into one documented JSON format, and lets you:
 
-1. **Download** it as JSON, as CSV (one file per kind), and as the raw band files (.zip). This is
-   the default, and the data never leaves your machine.
+1. **Download** it as JSON, as CSV (one file per kind), and as the raw band files (.zip).
 2. Let **your own AI agent** query the JSON locally through an MCP server
    ([`tools/health-mcp`](../tools/health-mcp/README.md)).
-3. **Optionally** upload the decoded records to the cloud API of this site, so an agent that cannot
-   run a local server can read them over REST or remote MCP with an API key. This is off by default.
+
+**Nothing is stored anywhere but your machine.** The data goes from the band to your browser and
+into the files you download; the site has no server-side storage and never receives health data.
 
 > **Verification status.** None of this has run against a real band yet. The protocol and the file
 > layouts are reimplemented from Gadgetbridge. The fetch flow is tested against the simulated band in
@@ -73,7 +73,7 @@ Assumptions you should know about:
 
 ## JSON format: `miband-health/1`
 
-One document, the same for the download, the local MCP server and the cloud API. Types are in
+One document, the same for the download and the local MCP server. Types are in
 [`src/health/schema.ts`](../src/health/schema.ts).
 
 - **Time**: every timestamp (`t`, `start`, `end`, `…At`) is an ISO 8601 UTC string. The band's own
@@ -89,7 +89,7 @@ One document, the same for the download, the local MCP server and the cloud API.
   "generator": "miband-hack",
   "timezone": { "timestamps": "UTC", "bandOffsetMinutes": 420 },
   "range": { "from": "…", "to": "…" },
-  "device": { "model": "Xiaomi Smart Band 9", "firmware": "2.3.93" }, // local export only, never uploaded
+  "device": { "model": "Xiaomi Smart Band 9", "firmware": "2.3.93" },
   "units": { "heartRate": "beats per minute", "…": "…" },
   "files": [{ "name": "2026/activity/daily/details/20261024T000000Z_00_00_00_v4.bin", "type": "activity", "subtype": "daily", "detail": "details", "version": 4, "t": "…", "tzOffsetMinutes": 420, "size": 2410, "decoded": "full" }],
   "activity": [{ "t": "2026-10-24T00:00:00.000Z", "steps": 12, "distanceM": 9, "activeKcal": 1, "heartRate": 71, "spo2": 97, "stress": 22 }],
@@ -116,89 +116,7 @@ See [`tools/health-mcp/README.md`](../tools/health-mcp/README.md). Tools: `data_
 `heart_rate`, `steps`, `sleep`, `workouts`, `spo2`, `stress`, `records` (raw query by kind, paged).
 They take `from`/`to` (YYYY-MM-DD or ISO 8601) or `days`, and `resolution` (`raw, minute, 5min,
 15min, hour, day, auto`). Responses are capped at 5000 points. The queries live in
-[`src/health/query.ts`](../src/health/query.ts) and are shared with the cloud API.
-
-## Cloud API (opt-in)
-
-Off unless the user ticks *"I understand, turn on the cloud API"* under the explanation and creates
-an account. Only the **decoded records** are uploaded, never the raw files, the device model or
-firmware, the band serial or the Xiaomi auth key.
-
-### Identity without Xiaomi tokens
-
-- `POST /api/health/account` creates an **anonymous account**: a random 128-bit id and an **owner
-  key**. No e-mail, name, Xiaomi account, band serial or IP address is stored. The IP is used only
-  as a hashed key for the rate limiter, never written to the database.
-- Keys look like `mbh_<16 hex id>.<43 base64url secret>` (256-bit secret). Only `SHA-256(secret)`
-  is stored and compared in constant time. A key is shown once.
-- The **owner key** is kept in the browser's localStorage. It uploads data, creates and revokes
-  agent keys, changes retention and deletes the account. Copy it to manage the data from another
-  browser. If it is lost, the data can no longer be deleted by hand, but it still expires (see
-  below).
-- **Agent keys** (role `read`) can only read. You create one per agent, at most 20 per account, and
-  can revoke each one.
-
-### Endpoints
-
-All take `Authorization: Bearer <key>` except account creation. Responses are JSON with
-`cache-control: no-store`.
-
-| Method & path | Key | |
-|---|---|---|
-| `POST /api/health/account` | none | create account → `{accountId, ownerKey, retentionDays}` |
-| `GET /api/health/account` | owner | account, keys (no secrets), stored days per kind |
-| `PATCH /api/health/account` `{retentionDays: 7\|30\|90\|365}` | owner | also deletes days older than the new limit at once |
-| `DELETE /api/health/account` | owner | **deletes the account, all keys and all records** (one transaction) |
-| `PUT /api/health/data` `{chunks: [{kind, day, records}]}` | owner | upload, max 40 chunks per request; merges with stored records (same time + source → replaced) |
-| `DELETE /api/health/data` | owner | delete all records, keep the account |
-| `POST /api/health/keys` `{label}` | owner | new agent key → `{id, key}` (shown once) |
-| `DELETE /api/health/keys/<id>` | owner | revoke an agent key |
-| `GET /api/health/v1/{info,summary,heart-rate,steps,sleep,workouts,spo2,stress,records}?from&to&days&resolution&kind&limit&offset&stages&tz_offset_minutes` | any | same results as the MCP tools |
-| `POST /api/health/mcp` | any | **remote MCP** (streamable HTTP, stateless, JSON responses; batches allowed; notifications → 202) |
-
-```bash
-claude mcp add --transport http miband-health https://miband.trinh.uk/api/health/mcp \
-  --header "Authorization: Bearer mbh_…"
-curl -H "Authorization: Bearer mbh_…" "https://miband.trinh.uk/api/health/v1/summary?days=7"
-```
-
-### Privacy and retention
-
-- **Off by default.** Nothing is uploaded until the user creates an account and presses Upload.
-- **No body logging.** The health API never calls `console.*` (a test enforces this), Workers
-  observability stays off, and error responses carry no data (`internal error`).
-- **Retention.** Records are stored per kind and UTC day and kept for **90 days by default**
-  (7/30/90/365 selectable). Older days are refused on upload and deleted by a daily cron. Accounts
-  with no upload or read for **180 days** are deleted completely.
-- **Delete all my data** (button, or `DELETE /api/health/account`) removes the account, its keys
-  and its records at once in one D1 batch. D1 keeps point-in-time recovery data
-  (Time Travel: 7 days on the Free plan, 30 on paid) outside the app's control.
-- **Isolation.** Every query is scoped by the account id that the key resolves to. Tests check that
-  one account's keys see none of another's data and cannot revoke its keys.
-- **Rate limits** (Workers Rate Limiting binding): 60 requests/min per key, and 5 new accounts/min
-  per IP.
-- No CORS headers. Browsers on other sites cannot call the API with a user's key.
-
-### Storage (D1)
-
-`migrations/0001_health.sql`: `accounts(id, created_at, last_active_at, retention_days)`,
-`api_keys(id, account_id, hash, role, label, created_at, last_used_at)`, and
-`chunks(account_id, kind, day, data JSON, updated_at)` with one row per kind and UTC day. No R2:
-raw files never leave the browser.
-
-### Deploying (owner)
-
-```bash
-cd miband-hack
-npx wrangler d1 create miband-health            # copy the database_id it prints
-# paste it into wrangler.jsonc → d1_databases[0].database_id (replace the zeros)
-npx wrangler d1 migrations apply miband-health --remote
-npm run deploy                                   # build + wrangler deploy (adds the cron and rate limiters)
-```
-
-The rate limiter `namespace_id`s (1701, 1702) only need to be unique within the Cloudflare account.
-Without `HEALTH_DB` the API answers 503 and the rest of the site works as before. Local test:
-`npx wrangler d1 migrations apply miband-health --local && npm run dev:worker`.
+[`src/health/query.ts`](../src/health/query.ts).
 
 ## Untested
 
@@ -209,7 +127,4 @@ Without `HEALTH_DB` the API answers 503 and the rest of the site works as before
   sleep details, manual samples v2 (tested with synthetic files only). Workout summaries and manual
   samples v1 are tested on real captures from other Xiaomi devices via Gadgetbridge's test suite.
 - Temperature scaling, the sleep sample interval unit, the "energy" field.
-- The cloud API on deployed Cloudflare: tests run the Worker code on `node:sqlite` with an in-memory
-  rate limiter, and it was smoke-tested once under local `wrangler dev`. CPU time of large reads on
-  the free plan (10 ms) is unknown: a 30-day minute-level query parses about 30 rows of JSON.
 - The webapp UI was rendered headless; it was never clicked through with a band.
