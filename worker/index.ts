@@ -1,7 +1,6 @@
-import { handleHealthApi, type HealthEnv, purgeExpired } from './health';
 import { isXiaomiLongPollUrl, listDevices, pollQrLogin, SERVERS, startQrLogin } from './xiaomi-cloud';
 
-interface Env extends HealthEnv {
+interface Env {
   ASSETS: Fetcher;
 }
 
@@ -48,7 +47,6 @@ async function handleApi(req: Request, url: URL): Promise<Response> {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === '/api/health' || url.pathname.startsWith('/api/health/')) return handleHealthApi(req, url, env);
     if (url.pathname.startsWith('/api/')) {
       try {
         return await handleApi(req, url);
@@ -58,9 +56,5 @@ export default {
       }
     }
     return env.ASSETS.fetch(req);
-  },
-
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(purgeExpired(env));
   },
 } satisfies ExportedHandler<Env>;

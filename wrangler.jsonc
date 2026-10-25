@@ -10,23 +10,5 @@
     "run_worker_first": ["/api/*"]
   },
   "routes": [{ "pattern": "miband.trinh.uk", "custom_domain": true }],
-  "observability": { "enabled": false },
-
-  // Opt-in cloud API for health data (worker/health.ts, docs/health-data.md).
-  // Create the database first and paste its id here: npx wrangler d1 create miband-health
-  "d1_databases": [
-    {
-      "binding": "HEALTH_DB",
-      "database_name": "miband-health",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ],
-  // Per API key and per IP (account creation only; the IP is hashed and never stored).
-  "ratelimits": [
-    { "name": "HEALTH_RATE_LIMIT", "namespace_id": "1701", "simple": { "limit": 60, "period": 60 } },
-    { "name": "HEALTH_SIGNUP_LIMIT", "namespace_id": "1702", "simple": { "limit": 5, "period": 60 } }
-  ],
-  // Daily purge of records past their retention and of accounts unused for 180 days.
-  "triggers": { "crons": ["17 3 * * *"] }
+  "observability": { "enabled": false }
 }
