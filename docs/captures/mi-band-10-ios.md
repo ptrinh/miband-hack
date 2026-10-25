@@ -42,9 +42,13 @@ your own capture, see [How to capture](#how-to-capture).
 
    Re-binding the band changes both.
 
-Working conclusion: a band bound to an iOS device only authenticates that device. A browser on another
-computer cannot get past NO_BOUND by changing the auth messages. Whether the browser could bind the band
-itself is being researched (it would unbind the phone).
+Conclusion: a band bound to an iOS device only authenticates that device. A browser on another computer
+cannot get past NO_BOUND by changing the auth messages, and it cannot bind the band itself:
+- The band asks for SERVER_PSK binding (`verify_mode = 1` in its BIND_INFO_V2), which needs a value signed
+  by Xiaomi's servers.
+- Web Bluetooth on macOS cannot create a bond.
+
+Details and sources: [binding-research.md](../binding-research.md).
 
 ## Session config
 
@@ -97,10 +101,14 @@ in parentheses is a varint value.
 | 13 | phone → band | 27 | `32 { 1:[32], 2:[36] }` | AppConfirm |
 | 14 | band → phone | 27 | `33 { 1:(1), 2:(…), 3:(128) }` | DeviceConfirm; encrypted traffic follows |
 
-Still open:
-- What steps 1–9 mean field by field.
-- Which values in steps 5, 7 and 9 Mi Fitness computes on the phone, and which it gets from Xiaomi's servers.
-  The HTTPS side is not in the Bluetooth log.
+Subtype names, mapped against AstroBox-NG-Module-Pb `wear_account.proto`:
+- 16 BOND_APPLY
+- 17 BIND_START_V2 / BIND_INFO_V2 (the band reports `verify_mode = 1` SERVER_PSK and `oob_mode = 3` BUTTON_CONFIRM)
+- 18 BIND_VERIFY: the phone relays the Xiaomi-server-signed `ServerVerify`
+- 19 BIND_CONFIRM
+- 25 BIND_RESULT_V2
+
+Only the subtype 18 values come from Xiaomi's cloud. See [binding-research.md](../binding-research.md).
 
 On the earlier connection (about 13 seconds before), the phone sent step 1 and the link dropped.
 

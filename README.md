@@ -122,7 +122,7 @@ test/
   integration.test.ts  version probe → SPP V2 → auth → end-to-end .rpk install
 ```
 
-Protocol details: [docs/protocol.md](docs/protocol.md). Real-device captures (Mi Band 10 with Mi Fitness on iOS: session config, binding flow, NO_BOUND): [docs/captures/mi-band-10-ios.md](docs/captures/mi-band-10-ios.md).
+Protocol details: [docs/protocol.md](docs/protocol.md). Real-device captures (Mi Band 10 with Mi Fitness on iOS: session config, binding flow, NO_BOUND): [docs/captures/mi-band-10-ios.md](docs/captures/mi-band-10-ios.md); why the browser cannot bind such a band: [docs/binding-research.md](docs/binding-research.md).
 
 ## Next steps
 
