@@ -201,6 +201,7 @@ export class BleV1Link implements Link {
   auth: AuthSession | null = null;
   onReadyForAuth = noop;
   onCommand: (b: Uint8Array) => void = noop;
+  onActivity: (b: Uint8Array) => void = noop;
   onClose = noop;
   log: (m: string) => void = noop;
 
@@ -216,6 +217,7 @@ export class BleV1Link implements Link {
     this.upload = chars.upload ? new XiaomiCharacteristic(chars.upload, this, writeSize) : null;
     if (this.upload) this.upload.incrementNonce = false;
     this.cmdRead.handler = (b) => this.onCommand(b);
+    this.activity.handler = (b) => this.onActivity(b);
     device.addEventListener('gattserverdisconnected', () => this.onClose());
   }
 

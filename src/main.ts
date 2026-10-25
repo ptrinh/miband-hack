@@ -9,6 +9,7 @@ import { requestBle, webBluetoothAvailable } from './transport/ble';
 import { SerialTransport, webSerialAvailable } from './transport/serial';
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
 import { buildNotesRpk, notesVersionCode, type Note } from './rpk';
+import { mountHealth, renderHealth } from './health/ui';
 
 const KEY_STORAGE = 'miband-hack.authkey';
 
@@ -148,6 +149,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <h2><span data-i18n="facesTitle"></span> <button class="small ghost" id="btn-refresh-faces" disabled style="margin-left:auto" data-i18n="refresh"></button></h2>
       <ul class="list" id="faces"></ul>
     </section>
+
+    <section class="card span-2" id="card-health"></section>
 
     <section class="card span-2">
       <details open>
@@ -317,6 +320,7 @@ function render(): void {
   renderApps(connected ? device!.apps : null);
   renderFaces(connected ? device!.faces : null);
   renderCatalog();
+  renderHealth();
 }
 
 function emptyItem(text: string): HTMLLIElement {
@@ -831,6 +835,7 @@ function localize(): void {
   render();
 }
 
+mountHealth($('card-health'), { device: () => device, log, toast, fail });
 localize();
 void loadCatalog();
 log(t('ready'));

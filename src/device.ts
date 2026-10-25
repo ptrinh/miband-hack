@@ -5,6 +5,7 @@ import { md5 } from './core/crypto';
 import type { ParsedFile } from './core/files';
 import { type Command, decodeCommand, encodeCommand } from './core/proto';
 import { deferred, type Link } from './protocol/link';
+import { ActivityAssembler, checkFile, compareFileIds, encodeFileId, type FileId, fileIdKey, type HealthFile, parseFileIdList, sameFileId } from './health/files';
 import { t } from './i18n';
 
 // Command types / subtypes, from Gadgetbridge's Xiaomi*Service classes (AGPL-3.0).
@@ -21,6 +22,11 @@ const RPK_LIST = 0;
 const RPK_INSTALL = 1;
 const RPK_INSTALLED = 2;
 const RPK_DELETE = 3;
+const HEALTH = 8;
+const HEALTH_LIST_TODAY = 1;
+const HEALTH_LIST_PAST = 2;
+const HEALTH_FETCH_FILE = 3;
+const HEALTH_ACK_FILE = 5;
 const DATA_UPLOAD = 22;
 const UPLOAD_START = 0;
 const UPLOAD_TYPE_WATCHFACE = 16;
@@ -29,6 +35,26 @@ const UPLOAD_TYPE_RPK = 64;
 const AUTH_TIMEOUT_MS = 20_000;
 const REPLY_TIMEOUT_MS = 15_000;
 const INSTALL_CONFIRM_TIMEOUT_MS = 90_000;
+// Gadgetbridge gives up on a file after 5 s without a chunk; a little more slack for Web Serial.
+const FILE_CHUNK_TIMEOUT_MS = 10_000;
+
+export interface HealthFetchOptions {
+  /** Unix seconds; files that start after `to` or more than a day and a half before `from` are skipped. */
+  from?: number;
+  to?: number;
+  /**
+   * Tell the band each file was synced. Off by default: the band may then delete the file and the
+   * official app would not get it any more.
+   */
+  ack?: boolean;
+}
+
+export interface HealthFetchResult {
+  files: HealthFile[];
+  /** Ids the band listed but did not deliver intact. */
+  failed: { id: FileId; reason: string }[];
+  listed: number;
+}
 
 export interface DeviceInfo {
   model?: string;
@@ -51,6 +77,8 @@ export class XiaomiDevice {
   apps: InstalledApp[] = [];
   faces: InstalledFace[] = [];
   connected = false;
+  /** How long to wait for the next chunk of a health file before giving up on it. */
+  healthFileTimeoutMs = FILE_CHUNK_TIMEOUT_MS;
 
   onChange: () => void = () => {};
   onLog: (msg: string) => void = () => {};
@@ -60,12 +88,15 @@ export class XiaomiDevice {
   private authDone = deferred();
   private waiters: Waiter[] = [];
   private busy = false;
+  private readonly activity = new ActivityAssembler();
+  private fileWaiter: { resolve: (b: Uint8Array) => void; reject: (e: unknown) => void; poke: () => void } | null = null;
 
   constructor(readonly link: Link, authKey: Uint8Array) {
     this.auth = new AuthSession(authKey);
     this.authDone.promise.catch(() => {}); // observed in connect(); avoid unhandled rejection on later disconnects
     link.log = (m) => this.onLog(m);
     link.onCommand = (b) => this.handleBytes(b);
+    link.onActivity = (b) => this.handleActivity(b);
     link.onReadyForAuth = () => {
       this.onLog('→ starting authentication');
       void this.send(this.auth.buildNonceCommand());
@@ -75,6 +106,7 @@ export class XiaomiDevice {
       this.authDone.reject(new Error(t('errConnLost')));
       this.waiters.forEach((w) => w.reject(new Error(t('errConnLost'))));
       this.waiters = [];
+      this.fileWaiter?.reject(new Error(t('errConnLost')));
       this.onDisconnect();
     };
   }
@@ -195,6 +227,16 @@ export class XiaomiDevice {
     }
   }
 
+  private handleActivity(chunk: Uint8Array): void {
+    try {
+      this.fileWaiter?.poke();
+      const file = this.activity.push(chunk);
+      if (file) this.fileWaiter?.resolve(file);
+    } catch (e) {
+      this.onLog(`⚠ activity data: ${(e as Error).message}`);
+    }
+  }
+
   // ------------------------------------------------------------- queries ---
 
   refreshInfo(): Promise<unknown> {
@@ -281,6 +323,84 @@ export class XiaomiDevice {
     onProgress(100, t('stSetFace'));
     await new Promise((r) => setTimeout(r, 1500));
     await this.setWatchface(file.id);
+  }
+
+  // ---------------------------------------------------------- health data ---
+
+  private async listHealthFiles(subtype: number): Promise<FileId[]> {
+    const cmd = subtype === HEALTH_LIST_TODAY
+      ? { type: HEALTH, subtype, health: { activitySyncRequestToday: { unknown1: 0 } } }
+      : { type: HEALTH, subtype };
+    const reply = await this.request(cmd, (c) => c.type === HEALTH && c.subtype === subtype, t('whatHealthList'));
+    return parseFileIdList(reply.health?.activityRequestFileIds);
+  }
+
+  /** Resolves with the next complete file on the activity channel; times out when chunks stop coming. */
+  private nextActivityFile(): Promise<Uint8Array> {
+    this.activity.reset();
+    return new Promise((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const done = () => {
+        clearTimeout(timer);
+        this.fileWaiter = null;
+      };
+      const poke = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          done();
+          reject(new Error(t('errNoReply', { what: t('whatHealthFile') })));
+        }, this.healthFileTimeoutMs);
+      };
+      this.fileWaiter = {
+        resolve: (b) => (done(), resolve(b)),
+        reject: (e) => (done(), reject(e)),
+        poke,
+      };
+      poke();
+    });
+  }
+
+  /**
+   * XiaomiHealthService / XiaomiActivityFileFetcher: list today's and past recorded files, then
+   * request them one by one; each arrives on the activity channel as `id | 00 | body | crc32`.
+   */
+  async fetchHealth(opts: HealthFetchOptions, onProgress: (done: number, total: number) => void): Promise<HealthFetchResult> {
+    if (this.busy) throw new Error(t('errBusy'));
+    this.busy = true;
+    try {
+      const lists = await Promise.allSettled([this.listHealthFiles(HEALTH_LIST_TODAY), this.listHealthFiles(HEALTH_LIST_PAST)]);
+      if (lists.every((l) => l.status === 'rejected')) throw (lists[0] as PromiseRejectedResult).reason;
+      const seen = new Map<string, FileId>();
+      for (const l of lists) if (l.status === 'fulfilled') for (const id of l.value) seen.set(fileIdKey(id), id);
+      const listed = seen.size;
+      const ids = [...seen.values()]
+        .filter((id) => (opts.to === undefined || id.ts <= opts.to) && (opts.from === undefined || id.ts >= opts.from - 36 * 3600))
+        .sort(compareFileIds);
+      this.onLog(`health: band lists ${listed} files, fetching ${ids.length}`);
+
+      const result: HealthFetchResult = { files: [], failed: [], listed };
+      onProgress(0, ids.length);
+      for (const [i, id] of ids.entries()) {
+        if (!this.connected) throw new Error(t('errConnLost'));
+        try {
+          const file = this.nextActivityFile();
+          file.catch(() => {}); // awaited below
+          await this.send({ type: HEALTH, subtype: HEALTH_FETCH_FILE, health: { activityRequestFileIds: encodeFileId(id) } });
+          const bytes = await file;
+          const got = checkFile(bytes);
+          if (!sameFileId(got, id)) throw new Error(`band sent ${fileIdKey(got)} instead of ${fileIdKey(id)}`);
+          result.files.push({ id, bytes });
+          if (opts.ack) await this.send({ type: HEALTH, subtype: HEALTH_ACK_FILE, health: { activitySyncAckFileIds: encodeFileId(id) } });
+        } catch (e) {
+          this.onLog(`⚠ health file ${fileIdKey(id)}: ${(e as Error).message}`);
+          result.failed.push({ id, reason: (e as Error).message });
+        }
+        onProgress(i + 1, ids.length);
+      }
+      return result;
+    } finally {
+      this.busy = false;
+    }
   }
 
   /** XiaomiDataUploadService: negotiate, then stream [0, type, md5, size, bytes, crc32] in parts. */

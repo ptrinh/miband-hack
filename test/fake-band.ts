@@ -24,8 +24,21 @@ export class FakeBand {
   private phoneEncNonce: Buffer | null = null;
   private upload: { parts: Buffer[]; total: number; type: number; size: number } | null = null;
   private pendingAcks: number[] = [];
+  /** Health file ids the phone acked (8/5), as hex. */
+  healthAcked: string[] = [];
+  /** Health file ids the phone requested (8/3), as hex. */
+  healthRequested: string[] = [];
 
-  constructor(private readonly secret: Buffer, private readonly opts: { txWindow: number; chunkSize: number; ackDelayMs: number }) {
+  constructor(
+    private readonly secret: Buffer,
+    private readonly opts: {
+      txWindow: number;
+      chunkSize: number;
+      ackDelayMs: number;
+      /** Recorded health files (id | 00 | body | crc32), listed under "today" or "past". */
+      health?: { today: Uint8Array[]; past: Uint8Array[]; activityChunk?: number; corrupt?: string[]; drop?: string[] };
+    },
+  ) {
     const band = this;
     this.transport = {
       label: 'fake',
@@ -54,6 +67,40 @@ export class FakeBand {
     }
     const payload = Buffer.concat([Buffer.from([1, encrypt ? 2 : 1]), body]);
     this.toPhone(encodeV2Frame(V2_DATA, this.seq++ & 0xff, payload));
+  }
+
+  /** XiaomiActivityFileFetcher's side: the file in `u16 total | u16 index | data` chunks on channel 5. */
+  private sendActivityFile(file: Uint8Array): void {
+    const size = this.opts.health?.activityChunk ?? 400;
+    const total = Math.ceil(file.length / size);
+    for (let i = 0; i < total; i++) {
+      const head = Buffer.alloc(4);
+      head.writeUInt16LE(total, 0);
+      head.writeUInt16LE(i + 1, 2);
+      const c = createCipheriv('aes-128-ctr', this.encKey!, this.encKey!);
+      const body = Buffer.concat([c.update(Buffer.concat([head, file.subarray(i * size, (i + 1) * size)])), c.final()]);
+      this.toPhone(encodeV2Frame(V2_DATA, this.seq++ & 0xff, Buffer.concat([Buffer.from([5, 2]), body])));
+    }
+  }
+
+  private onHealth(cmd: Command): void {
+    const h = this.opts.health ?? { today: [], past: [] };
+    const idHex = (f: Uint8Array) => Buffer.from(f.subarray(0, 7)).toString('hex');
+    if (cmd.subtype === 1 || cmd.subtype === 2) {
+      const list = cmd.subtype === 1 ? h.today : h.past;
+      this.sendCommand({ type: 8, subtype: cmd.subtype, health: { activityRequestFileIds: Buffer.concat(list.map((f) => f.subarray(0, 7))) } }, true);
+    } else if (cmd.subtype === 3) {
+      const want = Buffer.from(cmd.health!.activityRequestFileIds!).toString('hex');
+      this.healthRequested.push(want);
+      if (h.drop?.includes(want)) return; // band never answers
+      const file = [...h.today, ...h.past].find((f) => idHex(f) === want);
+      if (!file) return;
+      const out = Buffer.from(file);
+      if (h.corrupt?.includes(want)) out[out.length - 1] ^= 0xff;
+      this.sendActivityFile(out);
+    } else if (cmd.subtype === 5) {
+      this.healthAcked.push(Buffer.from(cmd.health!.activitySyncAckFileIds!).toString('hex'));
+    }
   }
 
   private onPhoneBytes(chunk: Buffer): void {
@@ -145,6 +192,8 @@ export class FakeBand {
       this.sendCommand({ type: 4, subtype: 0, watchface: { watchfaceList: { watchface: [{ id: '1', name: 'Default', active: true, canDelete: false }] } } }, true);
     } else if (cmd.type === 20 && cmd.subtype === 1) {
       this.sendCommand({ type: 20, subtype: 1, rpk: { rpkInstallStart: { cmd: 0 } } }, true);
+    } else if (cmd.type === 8) {
+      this.onHealth(cmd);
     } else if (cmd.type === 22 && cmd.subtype === 0) {
       const req = cmd.dataUpload!.dataUploadRequest!;
       this.upload = { parts: [], total: 0, type: req.type!, size: req.size! };

@@ -45,6 +45,7 @@ export class StreamLink implements Link {
   auth: AuthSession | null = null;
   onReadyForAuth = noop;
   onCommand: (b: Uint8Array) => void = noop;
+  onActivity: (b: Uint8Array) => void = noop;
   onClose = noop;
   log: (m: string) => void = noop;
 
@@ -154,6 +155,7 @@ export class StreamLink implements Link {
     if (p.dataType === V1_DATA_ENCRYPTED && this.auth?.encryptionInitialized) payload = this.auth.decrypt(payload);
     if (p.channel === 'version') this.onVersion(payload);
     else if (p.channel === 'proto') this.onCommand(payload);
+    else if (p.channel === 'activity') this.onActivity(payload);
   }
 
   private handleV2(p: V2Packet): void {
@@ -175,6 +177,7 @@ export class StreamLink implements Link {
           body = this.auth.decryptV2(body);
         }
         if (d.channel === 'proto') this.onCommand(body);
+        else if (d.channel === 'activity') this.onActivity(body);
         break;
       }
       case V2_ACK:
