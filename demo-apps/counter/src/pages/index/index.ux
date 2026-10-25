@@ -1,0 +1,558 @@
+<template>
+  <div id="page" class="page">
+    <div if="{{view === 'main'}}" class="main">
+      <div class="top">
+        <div class="pill name-pill" onclick="openCounters">
+          <text class="pill-label">{{name}} ›</text>
+        </div>
+        <div class="pill goal-pill {{goalClass}}" onclick="openGoals">
+          <div class="ring {{ringClass}}">
+            <div class="dot {{dotClass}}"></div>
+          </div>
+        </div>
+      </div>
+      <div class="tap" ontouchstart="onStart" ontouchend="onEnd" ontouchcancel="onCancel">
+        <text class="num {{numClass}} {{doneClass}}">{{count}}</text>
+        <text class="line {{doneClass}}">{{line}}</text>
+      </div>
+      <div class="bottom">
+        <div class="btn minus" onclick="minus">
+          <text class="btn-label">−1</text>
+        </div>
+        <div class="btn reset {{armedClass}}" onclick="resetTap">
+          <text class="btn-label small">{{resetLabel}}</text>
+        </div>
+      </div>
+    </div>
+    <div elif="{{view === 'counters'}}" class="sheet">
+      <text class="title">Counters</text>
+      <div class="row {{r.cls}}" for="{{(i, r) in rows}}" onclick="pickCounter(i)">
+        <text class="row-name">{{r.name}}</text>
+        <text class="row-count">{{r.count}}</text>
+      </div>
+      <div class="wide" onclick="renameCurrent">
+        <text class="wide-label">Rename: {{name}}</text>
+      </div>
+      <div class="wide done" onclick="closeSheet">
+        <text class="wide-label">Done</text>
+      </div>
+    </div>
+    <div else class="sheet">
+      <text class="title">Goal</text>
+      <div class="grid">
+        <div class="cell {{g.cls}}" for="{{(i, g) in goals}}" onclick="pickGoal(i)">
+          <text class="cell-label">{{g.label}}</text>
+        </div>
+      </div>
+      <text class="hint">Long buzz at the goal and every multiple</text>
+    </div>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import vibrator from '@system.vibrator'
+import {
+  SLOTS, GOALS, createState, deserialize, serialize, current, nameOf, increment, decrement,
+  reset, setGoal, select, rename, reached, goalLine, goalLabel, sizeClass, isTap
+} from '../../common/counter.js'
+
+var DESIGN_WIDTH = 192
+var STORAGE_KEY = 'counter-v1'
+var ARM_MS = 3000 // the Reset button waits this long for the confirming second tap
+
+var state = createState()
+
+// mode: 'short' for each step, 'long' at the goal. Documented for Mi Band 9 / 9 Pro / 10
+// (vibrator.vibrate; start/stop are not supported there).
+function buzz(mode) {
+  try {
+    vibrator.vibrate({ mode: mode })
+  } catch (e) {}
+}
+
+export default {
+  private: {
+    view: 'main', // main | counters | goals
+    name: '',
+    count: 0,
+    numClass: 'n-2',
+    line: '',
+    doneClass: '',
+    goalClass: '',
+    ringClass: '',
+    dotClass: '',
+    resetLabel: 'Reset',
+    armedClass: '',
+    rows: [],
+    goals: []
+  },
+
+  onInit() {
+    var self = this
+    // Non-reactive bookkeeping.
+    this.origin = { left: 0, top: 0, scale: 1 }
+    this.touch = null
+    this.loaded = false
+    this.armTimer = null
+    this.render()
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        state = deserialize(text)
+        self.loaded = true
+        self.render()
+      },
+      fail: function () {
+        self.loaded = true
+      }
+    })
+  },
+
+  onShow() {
+    var self = this
+    // Map touch coordinates (whatever unit the device reports) onto design px.
+    this.$element('page').getBoundingClientRect({
+      success: function (r) {
+        var scale = r.width > 0 ? DESIGN_WIDTH / r.width : 1
+        self.origin = { left: r.left, top: r.top, scale: scale }
+      }
+    })
+  },
+
+  onHide() {
+    this.disarm()
+  },
+
+  onDestroy() {
+    this.disarm()
+  },
+
+  onBackPress() {
+    if (this.view !== 'main') {
+      this.closeSheet()
+      return true
+    }
+    if (this.armTimer) {
+      this.disarm()
+      return true
+    }
+    return false
+  },
+
+  // ---- state → screen ----
+
+  save() {
+    storage.set({ key: STORAGE_KEY, value: serialize(state) })
+  },
+
+  render() {
+    var s = current(state)
+    this.name = nameOf(state, state.cur)
+    this.count = s.count
+    this.numClass = sizeClass(s.count)
+    this.line = goalLine(s)
+    this.doneClass = reached(s) ? 'done-col' : ''
+    this.goalClass = s.goal > 0 ? 'goal-on' : ''
+    this.ringClass = s.goal > 0 ? 'ring-on' : ''
+    this.dotClass = s.goal > 0 ? 'dot-on' : ''
+  },
+
+  // ---- counting ----
+
+  point(evt) {
+    var t = (evt.changedTouches && evt.changedTouches[0]) || (evt.touches && evt.touches[0])
+    if (!t) return null
+    var o = this.origin
+    return { x: (t.clientX - o.left) * o.scale, y: (t.clientY - o.top) * o.scale }
+  },
+
+  onStart(evt) {
+    this.touch = this.point(evt)
+  },
+
+  onCancel() {
+    this.touch = null
+  },
+
+  onEnd(evt) {
+    var s = this.touch
+    this.touch = null
+    if (!isTap(s, this.point(evt))) return
+    this.plus()
+  },
+
+  plus() {
+    if (!this.loaded) return
+    this.disarm()
+    var r = increment(state)
+    if (!r) return
+    buzz(r === 'goal' ? 'long' : 'short')
+    this.save()
+    this.render()
+  },
+
+  minus() {
+    if (!this.loaded) return
+    this.disarm()
+    if (!decrement(state)) return
+    buzz('short')
+    this.save()
+    this.render()
+  },
+
+  // First tap arms, a second tap within ARM_MS resets; anything else disarms.
+  resetTap() {
+    if (!this.loaded) return
+    var self = this
+    if (!this.armTimer) {
+      this.resetLabel = 'Sure?'
+      this.armedClass = 'armed'
+      this.armTimer = setTimeout(function () { self.disarm() }, ARM_MS)
+      return
+    }
+    this.disarm()
+    if (reset(state)) {
+      buzz('short')
+      this.save()
+    }
+    this.render()
+  },
+
+  disarm() {
+    if (this.armTimer) {
+      clearTimeout(this.armTimer)
+      this.armTimer = null
+    }
+    this.resetLabel = 'Reset'
+    this.armedClass = ''
+  },
+
+  // ---- sheets ----
+
+  openCounters() {
+    this.disarm()
+    this.fillRows()
+    this.view = 'counters'
+  },
+
+  fillRows() {
+    var rows = []
+    for (var i = 0; i < SLOTS; i++) {
+      rows.push({
+        name: nameOf(state, i),
+        count: state.slots[i].count,
+        cls: i === state.cur ? 'row-cur' : ''
+      })
+    }
+    this.rows = rows
+  },
+
+  pickCounter(i) {
+    select(state, i)
+    this.save()
+    this.render()
+    this.view = 'main'
+  },
+
+  renameCurrent() {
+    rename(state)
+    this.save()
+    this.render()
+    this.fillRows()
+  },
+
+  openGoals() {
+    this.disarm()
+    var goal = current(state).goal
+    var goals = []
+    for (var i = 0; i < GOALS.length; i++) {
+      goals.push({ label: goalLabel(GOALS[i]), cls: GOALS[i] === goal ? 'cell-cur' : '' })
+    }
+    this.goals = goals
+    this.view = 'goals'
+  },
+
+  pickGoal(i) {
+    setGoal(state, GOALS[i])
+    this.save()
+    this.render()
+    this.view = 'main'
+  },
+
+  closeSheet() {
+    this.view = 'main'
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+}
+
+.main {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+/* Left padding 18: clear of the 12 px Back strip; 14 at the top/bottom keeps off the rounded corners. */
+.top {
+  height: 40px;
+  margin-top: 16px;
+  padding-left: 18px;
+  padding-right: 14px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pill {
+  height: 36px;
+  border-radius: 18px;
+  padding-left: 12px;
+  padding-right: 12px;
+  background-color: #1c1c1e;
+  justify-content: center;
+  align-items: center;
+}
+
+.name-pill {
+  flex: 1;
+}
+
+/* Goal button: a target drawn with two circles (no icon font needed). */
+.goal-pill {
+  width: 44px;
+  margin-left: 8px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.goal-on {
+  background-color: #0a3a1c;
+}
+
+.ring {
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  border-style: solid;
+  border-width: 2px;
+  border-color: #8e8e93;
+  justify-content: center;
+  align-items: center;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #8e8e93;
+}
+
+.ring-on {
+  border-color: #30d158;
+}
+
+.dot-on {
+  background-color: #30d158;
+}
+
+.pill-label {
+  font-size: 15px;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+.tap {
+  flex: 1;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  margin-left: 14px;
+  margin-right: 10px;
+  border-radius: 28px;
+  background-color: #101012;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.num {
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+}
+
+.n-2 { font-size: 104px; }
+.n-3 { font-size: 88px; }
+.n-4 { font-size: 66px; }
+.n-5 { font-size: 54px; }
+.n-6 { font-size: 44px; }
+
+.line {
+  margin-top: 4px;
+  height: 24px;
+  font-size: 18px;
+  color: #8e8e93;
+  text-align: center;
+}
+
+.done-col {
+  color: #30d158;
+}
+
+.bottom {
+  height: 60px;
+  margin-bottom: 20px;
+  padding-left: 18px;
+  padding-right: 14px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.btn {
+  height: 60px;
+  border-radius: 20px;
+  justify-content: center;
+  align-items: center;
+  background-color: #2c2c2e;
+}
+
+.minus {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.reset {
+  width: 70px;
+}
+
+.armed {
+  background-color: #ff453a;
+}
+
+.btn-label {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.small {
+  font-size: 17px;
+}
+
+/* ---- sheets (counter list, goal picker) ---- */
+
+.sheet {
+  width: 100%;
+  height: 100%;
+  padding-top: 22px;
+  padding-left: 18px;
+  padding-right: 14px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  height: 32px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.row {
+  width: 160px;
+  height: 52px;
+  margin-bottom: 6px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 16px;
+  background-color: #1c1c1e;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.row-cur {
+  background-color: #0a3a1c;
+}
+
+.row-name {
+  flex: 1;
+  font-size: 15px;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+.row-count {
+  margin-left: 4px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #30d158;
+  text-align: right;
+}
+
+.wide {
+  width: 160px;
+  height: 48px;
+  margin-top: 8px;
+  border-radius: 16px;
+  background-color: #2c2c2e;
+  justify-content: center;
+  align-items: center;
+}
+
+.done {
+  background-color: #30d158;
+}
+
+.wide-label {
+  font-size: 16px;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+.grid {
+  width: 160px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.cell {
+  width: 76px;
+  height: 52px;
+  margin-bottom: 8px;
+  border-radius: 16px;
+  background-color: #1c1c1e;
+  justify-content: center;
+  align-items: center;
+}
+
+.cell-cur {
+  background-color: #30d158;
+}
+
+.cell-label {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.hint {
+  width: 160px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #8e8e93;
+  text-align: center;
+}
+</style>
