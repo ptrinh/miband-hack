@@ -17,6 +17,7 @@ import {
   v2DataPayload,
   v2DecodeData,
   v2SessionConfigPayload,
+  getIosSessionProfile,
   V2_ACK,
   V2_DATA,
   V2_NACK,
@@ -104,8 +105,13 @@ export class StreamLink implements Link {
 
   private async sendSessionConfig(deviceType?: number): Promise<void> {
     const payload = v2SessionConfigPayload(1, deviceType);
+    const ios = getIosSessionProfile();
     const extra = deviceType === undefined ? '' : `, device type ${deviceType}`;
-    this.log(`→ SPP V2 session config (${payload.length} B: version 1.0.0, maxFrame 64512, window 32, timeout 10000 ms${extra})`);
+    this.log(
+      ios
+        ? `→ SPP V2 session config, iOS form (${payload.length} B: version 1.0.0, OS ${ios.os.join('.')}, maxFrame 65535, device type 1, name ${ios.name.length} chars, window 16, timeout 15000 ms)`
+        : `→ SPP V2 session config (${payload.length} B: version 1.0.0, maxFrame 64512, window 32, timeout 10000 ms${extra})`,
+    );
     this.resetV2();
     await this.write(encodeV2Frame(V2_SESSION_CONFIG, 0, payload));
   }

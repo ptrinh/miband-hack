@@ -1,6 +1,7 @@
 import './style.css';
 import { AUTH_VARIANTS, type AuthVariant, parseAuthKey } from './core/auth';
 import { type ParsedFile, parseFile } from './core/files';
+import { setIosSessionProfile } from './core/packets';
 import { type ConnectOptions, type InstalledApp, type InstalledFace, XiaomiDevice } from './device';
 import { BleV1Link } from './protocol/ble-v1-link';
 import type { Link } from './protocol/link';
@@ -541,6 +542,14 @@ if (saved) {
   $<HTMLInputElement>('remember').checked = true;
 }
 $<HTMLInputElement>('deviceid').value = deviceIdStorage.get() ?? '';
+// ?session=ios[&name=iPhone%2013%20mini&os=27.0.1]: send the session config the way Mi Fitness on iOS does.
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('session') === 'ios') {
+    const os = (q.get('os') ?? '27.0.1').split('.').map((n) => Number(n) || 0);
+    setIosSessionProfile({ name: q.get('name') ?? 'iPhone', os: [os[0] ?? 0, os[1] ?? 0, os[2] ?? 0] });
+  }
+}
 {
   const v = new URLSearchParams(location.search).get('auth');
   if (v && (AUTH_VARIANTS as readonly string[]).includes(v)) {

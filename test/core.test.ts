@@ -6,7 +6,7 @@ import { fromHex, hex } from '../src/core/bytes';
 import { crc16arc, crc32 } from '../src/core/checksum';
 import { aesCtr, ccmDecrypt, ccmEncrypt } from '../src/core/crypto';
 import { parseFile } from '../src/core/files';
-import { encodeV1, encodeV2Frame, parseV1, parseV2, v1VersionRequest, V2_ACK } from '../src/core/packets';
+import { encodeV1, encodeV2Frame, parseV1, parseV2, v1VersionRequest, V2_ACK, v2SessionConfigPayloadIos } from '../src/core/packets';
 import { decodeCommand, encodeCommand } from '../src/core/proto';
 
 const u8 = (b: Buffer | Uint8Array) => new Uint8Array(b);
@@ -128,6 +128,13 @@ describe('auth step 1', () => {
     // Without one, AppVerify carries the nonce only: 2 bytes of tag + length, 16 bytes of nonce.
     expect(decodeCommand(without).auth?.appVerify?.nonce?.length).toBe(16);
     expect(without.length).toBe(encodeCommand({ type: 1, subtype: 26, auth: { appVerify: { nonce: new Uint8Array(16) } } }).length);
+  });
+});
+
+describe('session config, iOS form', () => {
+  it('is byte-identical to the one Mi Fitness on an iPhone sent (HCI capture, Mi Band 10)', () => {
+    const captured = '010103000100000703001b0001020200ffff05010001060e006950686f6e65203133206d696e690302001000040200983a';
+    expect(hex(v2SessionConfigPayloadIos(1, { name: 'iPhone 13 mini', os: [27, 0, 1] }))).toBe(captured);
   });
 });
 

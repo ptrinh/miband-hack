@@ -54,7 +54,44 @@ export function parseV2(buf: Uint8Array): Parse<V2Packet> {
  * `deviceType` adds TLV 5 (CONFIG_TYPE_DEVICE_TYPE in AstroBox-NG's layer1cmd.rs, which never sends it);
  * whether a band reads it, and with which values, is a guess (CompanionDevice.device_type: 0 Android, 1 iOS).
  */
+/**
+ * The session config Mi Fitness on iOS sends (captured from an iPhone's Bluetooth HCI log, Mi Band 10):
+ * TLVs 1 version 1.0.0, 7 OS version, 2 max frame 0xffff, 5 device type 1 (iOS), 6 device name,
+ * 3 window 16, 4 timeout 15000 ms, in that order. A band bound to an iOS phone accepted auth step 1
+ * (nonce only) after it, and answered NO_BOUND to our default config.
+ */
+export interface IosSessionProfile {
+  name: string;
+  os: [number, number, number];
+}
+
+let iosProfile: IosSessionProfile | null = null;
+
+/** Makes every following session config the iOS one (null restores the default). */
+export function setIosSessionProfile(p: IosSessionProfile | null): void {
+  iosProfile = p;
+}
+
+export function getIosSessionProfile(): IosSessionProfile | null {
+  return iosProfile;
+}
+
+export function v2SessionConfigPayloadIos(opCode: number, p: IosSessionProfile): Uint8Array {
+  const name = new TextEncoder().encode(p.name).subarray(0, 64);
+  return new Uint8Array([
+    opCode,
+    0x01, 0x03, 0x00, 0x01, 0x00, 0x00,
+    0x07, 0x03, 0x00, ...p.os.map((n) => n & 0xff),
+    0x02, 0x02, 0x00, 0xff, 0xff,
+    0x05, 0x01, 0x00, 0x01,
+    0x06, name.length & 0xff, name.length >> 8, ...name,
+    0x03, 0x02, 0x00, 0x10, 0x00,
+    0x04, 0x02, 0x00, 0x98, 0x3a,
+  ]);
+}
+
 export function v2SessionConfigPayload(opCode = 1, deviceType?: number): Uint8Array {
+  if (iosProfile) return v2SessionConfigPayloadIos(opCode, iosProfile);
   const base = [
     opCode,
     0x01, 0x03, 0x00, 0x01, 0x00, 0x00,
