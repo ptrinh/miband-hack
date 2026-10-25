@@ -939,6 +939,9 @@ function renderCloudDevices(res: PollResult): void {
 
 // ------------------------------------------------- key from Mi Fitness files ---
 
+/** Loose files from every pick so far: manifest.sqlite and its -wal may be picked one at a time. */
+const mfLoose: Record<string, Uint8Array> = {};
+
 $<HTMLInputElement>('mf-files').onchange = async (ev) => {
   const input = ev.target as HTMLInputElement;
   const ul = $('mf-keys');
@@ -948,16 +951,16 @@ $<HTMLInputElement>('mf-files').onchange = async (ev) => {
     const { keysFromFiles, keysFromZip } = await import('./core/mifitness-files');
     const picked = [...(input.files ?? [])];
     const keys = [];
-    const loose: Record<string, Uint8Array> = {};
     for (const f of picked) {
       const bytes = new Uint8Array(await f.arrayBuffer());
       if (/\.zip$/i.test(f.name) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) keys.push(...keysFromZip(bytes));
-      else loose[f.name] = bytes;
+      else mfLoose[f.name] = bytes;
     }
-    keys.push(...keysFromFiles(loose));
-    log(`Mi Fitness folder: ${keys.length} keys found`);
+    keys.push(...keysFromFiles(mfLoose));
+    log(`Mi Fitness folder: ${keys.length} keys found (${Object.keys(mfLoose).join(', ') || 'zip'})`);
     if (!keys.length) {
-      ul.appendChild(emptyItem(t('iosNone')));
+      const needWal = mfLoose['manifest.sqlite'] && !mfLoose['manifest.sqlite-wal'];
+      ul.appendChild(emptyItem(t(needWal ? 'iosNeedWal' : 'iosNone')));
       return;
     }
     renderKeyRows(

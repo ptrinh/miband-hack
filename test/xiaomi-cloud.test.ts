@@ -210,7 +210,28 @@ describe('mi fitness login and listing (mocked Xiaomi)', () => {
     expect(await ssoSession(login, 'xiaomiio')).toBeInstanceOf(Session);
     expect(seen[0].url).toContain('sid=xiaomiio');
     expect(seen[0].cookie).toContain('passToken=p');
-    expect(seen[1].url).toMatch(/^https:\/\/sts\.api\.io\.mi\.com\/sts\?d=1&clientSign=/);
+    expect(seen[1].url).toBe('https://sts.api.io.mi.com/sts?d=1'); // plain first, as ha_miband does
+  });
+
+  it('retries the STS location with a clientSign when the plain request sets no token', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (u: string) => {
+        seen.push(u);
+        if (u.startsWith('https://account.xiaomi.com/pass/serviceLogin')) {
+          return new Response('&&&START&&&{"code":0,"userId":1,"cUserId":"c","ssecurity":"' + SSECURITY + '","location":"https://sts.api.io.mi.com/sts?d=1","nonce":7}');
+        }
+        if (!u.includes('clientSign=')) return new Response('ok', { status: 200 });
+        return new Response(null, { status: 302, headers: { 'set-cookie': 'serviceToken=abc; path=/' } });
+      }),
+    );
+    const trail: string[] = [];
+    const login = { userId: '1', cUserId: 'c', ssecurity: SSECURITY, passToken: 'p', location: 'x' };
+    expect(await ssoSession(login, 'xiaomiio', trail)).toBeInstanceOf(Session);
+    expect(seen[2]).toMatch(/^https:\/\/sts\.api\.io\.mi\.com\/sts\?d=1&clientSign=/);
+    expect(trail).toEqual(['sts sts.api.io.mi.com (plain): HTTP 200, token no', 'sts sts.api.io.mi.com (clientSign): HTTP 302, token yes']);
+    expect(trail.join(' ')).not.toContain('abc');
   });
 
   it('gives up on SSO when Xiaomi asks for a new login', async () => {

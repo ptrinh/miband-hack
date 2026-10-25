@@ -152,15 +152,30 @@ export async function clientSign(nonce: string, ssecurity: string): Promise<stri
   return b64(await digest('SHA-1', enc.encode(`nonce=${nonce}&${ssecurity}`)));
 }
 
-/** Follows the STS location and returns the serviceToken cookie it sets. */
+const STS_AGENT = () => `${randomChars(18, 97, 122)}-${randomChars(13, 65, 69)} APP/com.xiaomi.mihome APPV/10.5.201`;
+
+/**
+ * Follows the STS location and returns the serviceToken cookie it sets. First as ha_miband does it
+ * (plain GET with an app User-Agent, redirects followed), then with a clientSign appended, as the
+ * Mi Home extractor does: Mi Fitness' STS answered 200 without a token to the second form alone.
+ */
 async function fetchServiceToken(location: string, ssecurity: string, nonce?: string, trail?: string[]): Promise<string> {
-  let url = location;
-  if (nonce && !/[?&]clientSign=/.test(url)) url += `${url.includes('?') ? '&' : '?'}clientSign=${encodeURIComponent(await clientSign(nonce, ssecurity))}`;
-  const loc = await fetch(url, { redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-  const cookie = loc.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
-  trail?.push(`sts ${new URL(location).host}: HTTP ${loc.status}, token ${cookie ? 'yes' : 'no'}`);
-  if (!cookie) throw new Error('Could not get a service token from Xiaomi');
-  return cookie;
+  const host = new URL(location).host;
+  const attempts: { label: string; url: string; manual: boolean }[] = [{ label: 'plain', url: location, manual: false }];
+  if (nonce && !/[?&]clientSign=/.test(location)) {
+    const signed = `${location}${location.includes('?') ? '&' : '?'}clientSign=${encodeURIComponent(await clientSign(nonce, ssecurity))}`;
+    attempts.push({ label: 'clientSign', url: signed, manual: true });
+  }
+  for (const a of attempts) {
+    const r = await fetch(a.url, {
+      redirect: a.manual ? 'manual' : 'follow',
+      headers: { 'User-Agent': STS_AGENT(), 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    const cookie = r.headers.getSetCookie().map((c) => /^serviceToken=([^;]+)/.exec(c)?.[1]).find(Boolean);
+    trail?.push(`sts ${host} (${a.label}): HTTP ${r.status}, token ${cookie ? 'yes' : 'no'}`);
+    if (cookie) return cookie;
+  }
+  throw new Error('Could not get a service token from Xiaomi');
 }
 
 /** The Mi Fitness session from the QR login (2 subrequests were spent: long-poll + STS). */
