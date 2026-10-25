@@ -75,6 +75,10 @@ export class StreamLink implements Link {
     };
   }
 
+  get overBle(): boolean {
+    return this.transport.label.startsWith('BLE');
+  }
+
   get name(): string {
     return `${this.transport.label} / ${this.mode === 'detect' ? '…' : this.mode.toUpperCase()}`;
   }
@@ -98,10 +102,18 @@ export class StreamLink implements Link {
     return p;
   }
 
-  private async sendSessionConfig(): Promise<void> {
-    this.log('→ SPP V2 session config');
+  private async sendSessionConfig(deviceType?: number): Promise<void> {
+    const payload = v2SessionConfigPayload(1, deviceType);
+    const extra = deviceType === undefined ? '' : `, device type ${deviceType}`;
+    this.log(`→ SPP V2 session config (${payload.length} B: version 1.0.0, maxFrame 64512, window 32, timeout 10000 ms${extra})`);
     this.resetV2();
-    await this.write(encodeV2Frame(V2_SESSION_CONFIG, 0, v2SessionConfigPayload(1)));
+    await this.write(encodeV2Frame(V2_SESSION_CONFIG, 0, payload));
+  }
+
+  async restartSession(deviceType?: number): Promise<void> {
+    if (this.mode !== 'v2') throw new Error('session restart needs SPP V2 framing');
+    this.rx.clear();
+    await this.sendSessionConfig(deviceType);
   }
 
   private onVersion(payload: Uint8Array): void {

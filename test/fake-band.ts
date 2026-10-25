@@ -24,17 +24,30 @@ export class FakeBand {
   private phoneEncNonce: Buffer | null = null;
   private upload: { parts: Buffer[]; total: number; type: number; size: number } | null = null;
   private pendingAcks: number[] = [];
+  /** Every auth step 1 received, with the session device type in force. */
+  authAttempts: { deviceId?: string; checkDynamicCode?: boolean; sessionDeviceType?: number }[] = [];
+  sessionConfigs = 0;
+  /** Decrypted CompanionDevice from step 2 (field 1 = device_type). */
+  companionInfo: Buffer | null = null;
+  bindStatusQueries = 0;
+  private sessionDeviceType: number | undefined;
   /** Health file ids the phone acked (8/5), as hex. */
   healthAcked: string[] = [];
   /** Health file ids the phone requested (8/3), as hex. */
   healthRequested: string[] = [];
 
   constructor(
-    private readonly secret: Buffer,
+    readonly secret: Buffer,
     private readonly opts: {
       txWindow: number;
       chunkSize: number;
       ackDelayMs: number;
+      /**
+       * Binding the band enforces on auth step 1, as a band paired from iOS seems to: step 1 is refused with
+       * Account.error_code NO_BOUND (4) unless it carries this app_device_id / followed a session config
+       * with this device type (TLV 5).
+       */
+      bound?: { deviceId?: string; sessionDeviceType?: number };
       /** Recorded health files (id | 00 | body | crc32), listed under "today" or "past". */
       health?: { today: Uint8Array[]; past: Uint8Array[]; activityChunk?: number; corrupt?: string[]; drop?: string[] };
     },
@@ -122,6 +135,14 @@ export class FakeBand {
 
   private onV2(p: { type: number; seq: number; payload: Uint8Array }): void {
     if (p.type === V2_SESSION_CONFIG) {
+      this.sessionConfigs++;
+      this.sessionDeviceType = undefined;
+      for (let off = 1; off + 3 <= p.payload.length; ) {
+        const key = p.payload[off];
+        const len = p.payload[off + 1] | (p.payload[off + 2] << 8);
+        if (key === 5 && len === 1) this.sessionDeviceType = p.payload[off + 3];
+        off += 3 + len;
+      }
       const w = this.opts.txWindow;
       this.toPhone(encodeV2Frame(V2_SESSION_CONFIG, 0, new Uint8Array([2, 0x03, 0x02, 0x00, w & 0xff, w >> 8])));
       return;
@@ -150,7 +171,23 @@ export class FakeBand {
   }
 
   private onCommand(cmd: Command): void {
+    if (cmd.type === 1 && cmd.subtype === 0) {
+      this.bindStatusQueries++;
+      this.sendCommand({ type: 1, subtype: 0, auth: { bindStatus: true } }, false);
+      return;
+    }
     if (cmd.type === 1 && cmd.subtype === 26) {
+      const av = cmd.auth!.appVerify!;
+      this.authAttempts.push({
+        ...(av.deviceId ? { deviceId: av.deviceId } : {}),
+        ...(av.checkDynamicCode ? { checkDynamicCode: true } : {}),
+        ...(this.sessionDeviceType !== undefined ? { sessionDeviceType: this.sessionDeviceType } : {}),
+      });
+      const b = this.opts.bound;
+      if (b && ((b.deviceId !== undefined && av.deviceId !== b.deviceId) || (b.sessionDeviceType !== undefined && this.sessionDeviceType !== b.sessionDeviceType))) {
+        this.sendCommand({ type: 1, subtype: 26, auth: { errorCode: 4 } }, false);
+        return;
+      }
       this.phoneNonce = Buffer.from(cmd.auth!.appVerify!.nonce);
       const hk = createHmac('sha256', Buffer.concat([this.phoneNonce, this.watchNonce])).update(this.secret).digest();
       let t = Buffer.alloc(0);
@@ -176,8 +213,9 @@ export class FakeBand {
       const enc = Buffer.from(conf.encryptedDeviceInfo);
       const d = createDecipheriv('aes-128-ccm', this.decKey!, nonce, { authTagLength: 4 });
       d.setAuthTag(enc.subarray(enc.length - 4));
-      d.update(enc.subarray(0, enc.length - 4)); // throws on a bad tag via final()
+      const info = d.update(enc.subarray(0, enc.length - 4)); // throws on a bad tag via final()
       d.final();
+      this.companionInfo = info;
       this.sendCommand({ type: 1, subtype: 27 }, false);
       return;
     }

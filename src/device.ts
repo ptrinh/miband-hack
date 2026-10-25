@@ -1,4 +1,19 @@
-import { AUTH_COMMAND_TYPE, AuthSession, CMD_AUTH, CMD_NONCE, CMD_SEND_USERID } from './core/auth';
+import {
+  ACCOUNT_NO_BOUND,
+  accountErrorName,
+  AUTH_COMMAND_TYPE,
+  type AuthAttempt,
+  AuthSession,
+  type AuthVariant,
+  CMD_AUTH,
+  CMD_BIND_STATUS,
+  CMD_NONCE,
+  CMD_SEND_USERID,
+  COMPANION_ANDROID,
+  COMPANION_IOS,
+  describeIdShape,
+  planAuthAttempts,
+} from './core/auth';
 import { concat, hex, u16le, u32le } from './core/bytes';
 import { crc32 } from './core/checksum';
 import { md5 } from './core/crypto';
@@ -32,8 +47,13 @@ const UPLOAD_START = 0;
 const UPLOAD_TYPE_WATCHFACE = 16;
 const UPLOAD_TYPE_RPK = 64;
 
-// Long enough to accept the pairing prompt the band shows on a first BLE connection.
-const AUTH_TIMEOUT_MS = 60_000;
+// Long enough to accept the pairing prompt the band shows on a first BLE connection and to try every
+// handshake variant.
+const AUTH_TIMEOUT_MS = 120_000;
+// A step-1 attempt the band does not answer at all; one that may show a prompt on the band gets longer.
+const AUTH_ATTEMPT_TIMEOUT_MS = 10_000;
+const AUTH_PROMPT_ATTEMPT_TIMEOUT_MS = 30_000;
+const BIND_STATUS_TIMEOUT_MS = 3_000;
 const REPLY_TIMEOUT_MS = 15_000;
 const INSTALL_CONFIRM_TIMEOUT_MS = 90_000;
 // Gadgetbridge gives up on a file after 5 s without a chunk; a little more slack for Web Serial.
@@ -73,6 +93,13 @@ interface Waiter {
   timer: ReturnType<typeof setTimeout>;
 }
 
+export interface ConnectOptions {
+  /** Which step-1 shapes to try (see planAuthAttempts); `auto` tries them all. */
+  authVariant?: AuthVariant;
+  /** CompanionDevice.device_type in step 2; `auto` = iOS over BLE when a Device ID is set, else Android. */
+  companion?: 'auto' | 'android' | 'ios';
+}
+
 export class XiaomiDevice {
   info: DeviceInfo = {};
   apps: InstalledApp[] = [];
@@ -92,25 +119,112 @@ export class XiaomiDevice {
   private readonly activity = new ActivityAssembler();
   private fileWaiter: { resolve: (b: Uint8Array) => void; reject: (e: unknown) => void; poke: () => void } | null = null;
 
-  constructor(readonly link: Link, authKey: Uint8Array, deviceId = '') {
+  private attempts: AuthAttempt[] = [];
+  private attemptIdx = 0;
+  private attemptTimer: ReturnType<typeof setTimeout> | null = null;
+  private authStarted = false;
+  private sessionDeviceType: number | undefined = undefined;
+  private bindStatusProbe: ReturnType<typeof deferred<void>> | null = null;
+  private bindStatusProbed = false;
+  /** The step-1 variant the band accepted. */
+  authVariantUsed: string | null = null;
+
+  constructor(readonly link: Link, authKey: Uint8Array, deviceId = '', opts: ConnectOptions = {}) {
     this.auth = new AuthSession(authKey, true, deviceId);
+    const companion = opts.companion ?? 'auto';
+    this.auth.companionType =
+      companion === 'ios' || (companion === 'auto' && link.overBle && !!deviceId.trim()) ? COMPANION_IOS : COMPANION_ANDROID;
     this.authDone.promise.catch(() => {}); // observed in connect(); avoid unhandled rejection on later disconnects
     link.log = (m) => this.onLog(m);
     link.onCommand = (b) => this.handleBytes(b);
     link.onActivity = (b) => this.handleActivity(b);
     link.onReadyForAuth = () => {
-      this.onLog('→ starting authentication');
-      this.onLog(t('authAcceptOnBand'));
-      void this.send(this.auth.buildNonceCommand());
+      if (!this.authStarted) {
+        this.authStarted = true;
+        // Planned here: an SPP link only knows whether it speaks V2 (and can restart its session) by now.
+        this.attempts = planAuthAttempts(deviceId, opts.authVariant ?? 'auto', !!link.restartSession && link.name.endsWith('V2'));
+        this.onLog('→ starting authentication');
+        this.onLog(
+          `  Device ID: ${deviceId.trim() ? `entered (${describeIdShape(deviceId.trim())})` : 'none entered'}; ` +
+            `${this.attempts.length} step-1 variant(s): ${this.attempts.map((a) => a.id).join(', ')}`,
+        );
+        this.onLog(t('authAcceptOnBand'));
+      }
+      this.sendAttempt();
     };
     link.onClose = () => {
       this.connected = false;
+      this.clearAttemptTimer();
       this.authDone.reject(new Error(t('errConnLost')));
       this.waiters.forEach((w) => w.reject(new Error(t('errConnLost'))));
       this.waiters = [];
       this.fileWaiter?.reject(new Error(t('errConnLost')));
       this.onDisconnect();
     };
+  }
+
+  // ---------------------------------------------------------------- auth ---
+
+  private clearAttemptTimer(): void {
+    if (this.attemptTimer) clearTimeout(this.attemptTimer);
+    this.attemptTimer = null;
+  }
+
+  /** Sends step 1 for the current attempt, restarting the session first if the attempt needs another one. */
+  private sendAttempt(): void {
+    const a = this.attempts[this.attemptIdx];
+    if (!a || this.authVariantUsed) return;
+    if (a.sessionDeviceType !== this.sessionDeviceType) {
+      this.sessionDeviceType = a.sessionDeviceType;
+      this.onLog(`→ restarting the session${a.sessionDeviceType === undefined ? '' : ` with device type ${a.sessionDeviceType}`}`);
+      this.link.restartSession!(a.sessionDeviceType).catch((e) => this.authDone.reject(e));
+      return; // onReadyForAuth comes back here
+    }
+    const bytes = encodeCommand(this.auth.buildNonceCommand(a));
+    const n = this.attempts.length;
+    this.onLog(
+      `→ auth step 1 [${this.attemptIdx + 1}/${n} ${a.id}]: nonce 16 B, ` +
+        `app_device_id ${a.deviceId ? `sent (${describeIdShape(a.deviceId)})` : 'not sent'}, ` +
+        `check_dynamic_code ${a.checkDynamicCode ? 'true' : 'not sent'}, ` +
+        `session device type ${this.sessionDeviceType ?? 'not sent'}; ${bytes.length} B protobuf, channel 1, unencrypted`,
+    );
+    if (a.checkDynamicCode && this.attemptIdx > 0) this.onLog(t('authAcceptOnBand'));
+    this.clearAttemptTimer();
+    // The first attempt may wait for the band's pairing prompt; a dynamic code may wait for a press on the band.
+    const wait = a.checkDynamicCode || this.attemptIdx === 0 ? AUTH_PROMPT_ATTEMPT_TIMEOUT_MS : AUTH_ATTEMPT_TIMEOUT_MS;
+    this.attemptTimer = setTimeout(() => {
+      this.onLog(`⚠ no reply to auth step 1 [${a.id}] within ${wait / 1000} s`);
+      this.nextAttempt(t('errAuthTimeout'));
+    }, wait);
+    this.link.sendCommand(bytes, true).catch((e) => this.authDone.reject(e));
+  }
+
+  private nextAttempt(lastError: string): void {
+    this.clearAttemptTimer();
+    if (++this.attemptIdx < this.attempts.length) {
+      this.sendAttempt();
+      return;
+    }
+    this.authDone.reject(new Error(lastError));
+  }
+
+  /** Asks the band whether it considers itself bound (read-only); logs the answer, if any. */
+  private async probeBindStatus(): Promise<void> {
+    this.bindStatusProbed = true;
+    const probe = deferred<void>();
+    this.bindStatusProbe = probe;
+    this.onLog('→ asking the band for its bind status (Account subtype 0, read-only)');
+    const timer = setTimeout(() => {
+      this.onLog(`  no bind status reply within ${BIND_STATUS_TIMEOUT_MS / 1000} s`);
+      probe.resolve();
+    }, BIND_STATUS_TIMEOUT_MS);
+    try {
+      await this.send({ type: AUTH_COMMAND_TYPE, subtype: CMD_BIND_STATUS });
+      await probe.promise;
+    } finally {
+      clearTimeout(timer);
+      this.bindStatusProbe = null;
+    }
   }
 
   async connect(): Promise<void> {
@@ -120,6 +234,7 @@ export class XiaomiDevice {
       await this.authDone.promise;
     } finally {
       clearTimeout(timer);
+      this.clearAttemptTimer();
     }
     this.connected = true;
     this.onLog('✓ authenticated');
@@ -181,21 +296,52 @@ export class XiaomiDevice {
   }
 
   private handleAuth(cmd: Command, raw: Uint8Array): void {
+    // Raw auth replies carry nonces, HMACs and status codes only: no key material.
+    if (cmd.subtype === CMD_BIND_STATUS) {
+      const err = cmd.auth?.errorCode;
+      this.onLog(
+        `← bind status: ${cmd.auth?.bindStatus === undefined ? '—' : `bind_status=${cmd.auth.bindStatus}`}` +
+          `${err === undefined ? '' : `, error_code ${accountErrorName(err)}`} (raw ${hex(raw, 64)})`,
+      );
+      this.bindStatusProbe?.resolve();
+      return;
+    }
     if (cmd.subtype === CMD_NONCE) {
+      const a = this.attempts[this.attemptIdx];
       const dv = cmd.auth?.deviceVerify;
       if (!dv) {
-        // The raw reply (no key material: nonces and status codes only) tells why the band refused.
-        this.onLog(`← auth reply without a watch nonce (${raw.length} bytes): ${hex(raw, 64)}`);
-        this.authDone.reject(new Error(t('errHandshake', { status: cmd.auth?.refusal ?? cmd.auth?.status ?? cmd.status ?? '?' })));
+        this.clearAttemptTimer();
+        const err = cmd.auth?.errorCode;
+        const status = err !== undefined ? accountErrorName(err) : String(cmd.auth?.status ?? cmd.status ?? '?');
+        this.onLog(`← refused [${a?.id ?? '?'}]: ${err !== undefined ? `error_code ${status}` : `status ${status}`} (raw ${raw.length} B: ${hex(raw, 64)})`);
+        const message = t('errHandshake', { status }) + (err === ACCOUNT_NO_BOUND ? ` ${t('errNoBound')}` : '');
+        if (err === ACCOUNT_NO_BOUND && !this.bindStatusProbed && this.attemptIdx + 1 < this.attempts.length) {
+          void this.probeBindStatus().then(() => this.nextAttempt(message));
+        } else {
+          this.nextAttempt(message);
+        }
         return;
       }
+      this.clearAttemptTimer();
+      this.authVariantUsed = a?.id ?? '?';
+      this.onLog(`← watch nonce received: the band accepted step 1 variant [${this.authVariantUsed}]`);
       try {
-        void this.send(this.auth.handleWatchNonce(dv.nonce, dv.hmac));
+        const step2 = this.auth.handleWatchNonce(dv.nonce, dv.hmac);
+        this.onLog(`→ auth step 2: companion device_type ${this.auth.companionType === COMPANION_IOS ? 'iOS (1)' : 'Android (0)'}`);
+        void this.send(step2);
       } catch (e) {
         this.authDone.reject(e);
         void this.link.close();
       }
     } else if (cmd.subtype === CMD_AUTH) {
+      const err = cmd.auth?.errorCode;
+      if ((err !== undefined && err !== 0) || cmd.auth?.authStep4?.unknown1 === false) {
+        const status = err !== undefined ? accountErrorName(err) : 'confirm_result=false';
+        this.onLog(`← auth step 2 refused: ${status} (raw ${raw.length} B: ${hex(raw, 64)})`);
+        this.authDone.reject(new Error(t('errHandshake', { status })));
+        return;
+      }
+      this.onLog(`← auth step 2 accepted (variant [${this.authVariantUsed}], companion ${this.auth.companionType === COMPANION_IOS ? 'iOS' : 'Android'})`);
       this.auth.encryptionInitialized = true;
       this.link.auth = this.auth;
       this.link.onAuthSuccess();

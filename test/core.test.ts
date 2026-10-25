@@ -116,7 +116,7 @@ describe('auth step 1', () => {
     expect(cmd.type).toBe(1);
     expect(cmd.subtype).toBe(26);
     expect(cmd.auth?.deviceVerify).toBeUndefined();
-    expect(cmd.auth?.refusal).toBe(4);
+    expect(cmd.auth?.errorCode).toBe(4);
   });
 
   it('sends the deviceId (field 2 of AppVerify) only when one is set', () => {

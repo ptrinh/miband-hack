@@ -49,15 +49,21 @@ export function parseV2(buf: Uint8Array): Parse<V2Packet> {
   return { status: 'complete', size, packet: { type: buf[2] & 0x0f, seq: buf[3], payload } };
 }
 
-/** Session config the official app sends: version 1.0.0, max frame 0xfc00, tx window 32, timeout 10 s. */
-export function v2SessionConfigPayload(opCode = 1): Uint8Array {
-  return new Uint8Array([
+/**
+ * Session config the official app sends: version 1.0.0, max frame 0xfc00, tx window 32, timeout 10 s.
+ * `deviceType` adds TLV 5 (CONFIG_TYPE_DEVICE_TYPE in AstroBox-NG's layer1cmd.rs, which never sends it);
+ * whether a band reads it, and with which values, is a guess (CompanionDevice.device_type: 0 Android, 1 iOS).
+ */
+export function v2SessionConfigPayload(opCode = 1, deviceType?: number): Uint8Array {
+  const base = [
     opCode,
     0x01, 0x03, 0x00, 0x01, 0x00, 0x00,
     0x02, 0x02, 0x00, 0x00, 0xfc,
     0x03, 0x02, 0x00, 0x20, 0x00,
     0x04, 0x02, 0x00, 0x10, 0x27,
-  ]);
+  ];
+  if (deviceType !== undefined) base.push(0x05, 0x01, 0x00, deviceType & 0xff);
+  return new Uint8Array(base);
 }
 
 export interface V2SessionConfig {
