@@ -1,0 +1,20 @@
+{
+  "name": "miband-snake",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Snake mini game quick app for Xiaomi Mi Band 9/10 (Xiaomi Vela JS quick app)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "aiot build",
+    "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
+    "release": "npm run presign && aiot release",
+    "publish-demo": "npm run release && cp dist/uk.trinh.miband.snake.release.1.0.0.rpk ../../public/apps/snake.rpk && cp src/common/logo.png ../../public/apps/snake.png",
+    "test": "node --no-warnings test/snake-check.mjs && node --no-warnings test/page-check.mjs"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "2.0.5"
+  }
+}

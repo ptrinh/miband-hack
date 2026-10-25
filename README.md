@@ -44,8 +44,9 @@ MiBand Hack lấp chỗ trống đó: mở một trang web là cài được.
 | Calculator | Máy tính + − × ÷, số thập phân | `demo-apps/calculator` |
 | Drawing | Vẽ bằng tay: 5 màu, 3 cỡ bút, tẩy, hoàn tác, tự lưu | `demo-apps/drawing` |
 | Notes | Hiện note của người dùng (chỉ xem). Note soạn trên webapp, trình duyệt **đóng gói lại và ký lại `.rpk`** rồi cài | `demo-apps/notes` + `src/rpk/` |
+| Snake | Game rắn săn mồi: vuốt hoặc chạm nửa trái/phải để rẽ, nhanh dần, lưu điểm cao nhất | `demo-apps/snake` |
 
-Cả ba build bằng `aiot-toolkit` 2.0.5 (toolchain chính thức của Xiaomi Vela). **Chưa app nào được chạy thử trên band thật.**
+Cả bốn build bằng `aiot-toolkit` 2.0.5 (toolchain chính thức của Xiaomi Vela). **Chưa app nào được chạy thử trên band thật.**
 
 `src/rpk/` là bản port định dạng chữ ký "RPK Sig Block 42" của aiot-toolkit (biến thể APK Signature Scheme v2, RSA PKCS#1 v1.5 + SHA-256) sang WebCrypto. Test xác nhận chữ ký **giống từng byte** với bản toolkit ký. Notes được ký bằng một key demo **cố ý công khai** (`src/rpk/demo-key/`).
 

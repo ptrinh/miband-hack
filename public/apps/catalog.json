@@ -48,6 +48,22 @@
       ],
       "source": "demo-apps/notes",
       "customize": "notes"
+    },
+    {
+      "id": "uk.trinh.miband.snake",
+      "name": "Snake",
+      "description": {
+        "en": "Classic Snake mini game: swipe or tap the screen halves to turn. Gets faster as you eat; keeps your best score.",
+        "zh": "经典贪吃蛇小游戏：滑动或点击屏幕左右两侧转向。越吃越快，会保存最高分。",
+        "vi": "Game rắn săn mồi cổ điển: vuốt hoặc chạm nửa trái / phải màn hình để rẽ. Ăn càng nhiều càng nhanh, lưu điểm cao nhất."
+      },
+      "file": "apps/snake.rpk",
+      "icon": "apps/snake.png",
+      "devices": [
+        "Mi Band 9",
+        "Mi Band 10"
+      ],
+      "source": "demo-apps/snake"
     }
   ]
 }

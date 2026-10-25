@@ -1,0 +1,333 @@
+<template>
+  <div id="page" class="page" ontouchstart="onStart" ontouchend="onEnd" ontouchcancel="onCancel">
+    <div class="bar">
+      <text class="score">{{score}}</text>
+      <text class="best">Best {{best}}</text>
+    </div>
+    <div class="field">
+      <div class="seg" for="{{s in segs}}" style="left: {{s.l}}px; top: {{s.t}}px;"></div>
+      <div class="food" if="{{food.on}}" style="left: {{food.l}}px; top: {{food.t}}px;"></div>
+      <div class="head" style="left: {{head.l}}px; top: {{head.t}}px;"></div>
+      <div class="overlay" if="{{mode !== 'run'}}">
+        <text class="title">{{title}}</text>
+        <text class="sub">{{sub}}</text>
+        <text class="help" if="{{mode !== 'over'}}">Swipe to steer, or tap the left / right half to turn</text>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import storage from '@system.storage'
+import { COLS, ROWS, createGame, turn, turnSide, step, interval } from '../../common/snake.js'
+
+var DESIGN_WIDTH = 192
+var CELL = 12 // design px per grid cell; the field is COLS x ROWS cells (180 x 384)
+var EDGE = 12 // touches starting this close to the left edge are left to the system back gesture
+var SWIPE = 18 // design px of travel that turns a touch into a swipe
+var STORAGE_KEY = 'snake-best'
+
+var game = createGame(COLS, ROWS)
+
+function px(c) {
+  return { l: c.x * CELL + 1, t: c.y * CELL + 1 }
+}
+
+export default {
+  private: {
+    segs: [],
+    head: { l: 0, t: 0 },
+    food: { on: false, l: 0, t: 0 },
+    score: 0,
+    best: 0,
+    mode: 'ready', // ready | run | paused | over
+    title: 'Snake',
+    sub: 'Tap to start'
+  },
+
+  onInit() {
+    var self = this
+    // Non-reactive bookkeeping.
+    this.origin = { left: 0, top: 0, scale: 1, width: DESIGN_WIDTH }
+    this.slots = [] // segs index for each body cell, head first: the tail's div is reused as the new head
+    this.timer = null
+    this.touch = null
+    this.lastTouch = 0
+    this.overAt = 0
+    this.reset()
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (text) {
+        var n = parseInt(text, 10)
+        if (n > 0) self.best = n
+      }
+    })
+  },
+
+  onShow() {
+    var self = this
+    // Map touch coordinates (whatever unit the device reports) onto design px.
+    this.$element('page').getBoundingClientRect({
+      success: function (r) {
+        var scale = r.width > 0 ? DESIGN_WIDTH / r.width : 1
+        self.origin = { left: r.left, top: r.top, scale: scale, width: DESIGN_WIDTH }
+      }
+    })
+  },
+
+  onHide() {
+    if (this.mode === 'run') this.pause()
+  },
+
+  onDestroy() {
+    this.stopTimer()
+  },
+
+  onBackPress() {
+    // A right swipe that steers the snake must not pause or close the app.
+    if (this.touch || Date.now() - this.lastTouch < 400) return true
+    if (this.mode === 'run') {
+      this.pause()
+      return true
+    }
+    return false
+  },
+
+  // ---- game flow ----
+
+  reset() {
+    game = createGame(COLS, ROWS)
+    var segs = []
+    var slots = []
+    for (var i = 0; i < game.body.length; i++) {
+      segs.push(px(game.body[i]))
+      slots.push(i)
+    }
+    this.slots = slots
+    this.segs = segs // the only full re-render: once per game
+    this.head = px(game.body[0])
+    this.score = 0
+    this.showFood()
+  },
+
+  start() {
+    if (this.mode === 'over') this.reset()
+    this.mode = 'run'
+    this.schedule()
+  },
+
+  pause() {
+    this.stopTimer()
+    this.mode = 'paused'
+    this.title = 'Paused'
+    this.sub = 'Tap to resume'
+  },
+
+  gameOver() {
+    this.stopTimer()
+    this.mode = 'over'
+    this.overAt = Date.now()
+    this.title = game.won ? 'You win!' : 'Game over'
+    this.sub = 'Tap to play again'
+    if (game.score > this.best) {
+      this.best = game.score
+      storage.set({ key: STORAGE_KEY, value: String(game.score) })
+    }
+  },
+
+  schedule() {
+    var self = this
+    this.stopTimer()
+    this.timer = setTimeout(function () { self.tick() }, interval(game.score))
+  },
+
+  stopTimer() {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+  },
+
+  tick() {
+    this.timer = null
+    if (this.mode !== 'run') return
+    var r = step(game)
+    if (r.head) {
+      // Move one div: the freed tail's div becomes the new head cell, or a new div when the snake grew.
+      var p = px(r.head)
+      var slot
+      if (r.tail) {
+        slot = this.slots.pop()
+        this.segs[slot].l = p.l
+        this.segs[slot].t = p.t
+      } else {
+        this.segs.push(p)
+        slot = this.segs.length - 1
+      }
+      this.slots.unshift(slot)
+      this.head.l = p.l
+      this.head.t = p.t
+      if (r.ate) {
+        this.score = game.score
+        this.showFood()
+      }
+    }
+    if (game.over) this.gameOver()
+    else this.schedule()
+  },
+
+  showFood() {
+    if (!game.food) {
+      this.food.on = false
+      return
+    }
+    var p = px(game.food)
+    this.food.l = p.l
+    this.food.t = p.t
+    this.food.on = true
+  },
+
+  // ---- input ----
+
+  point(evt) {
+    var t = (evt.changedTouches && evt.changedTouches[0]) || (evt.touches && evt.touches[0])
+    if (!t) return null
+    var o = this.origin
+    return { x: (t.clientX - o.left) * o.scale, y: (t.clientY - o.top) * o.scale }
+  },
+
+  onStart(evt) {
+    var p = this.point(evt)
+    if (!p || p.x < EDGE) {
+      this.touch = null
+      return
+    }
+    this.touch = p
+    this.lastTouch = Date.now()
+  },
+
+  onCancel() {
+    this.touch = null
+  },
+
+  onEnd(evt) {
+    var s = this.touch
+    this.touch = null
+    if (!s) return
+    this.lastTouch = Date.now()
+    var p = this.point(evt) || s
+    var dx = p.x - s.x
+    var dy = p.y - s.y
+    var swipe = Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE
+
+    if (this.mode !== 'run') {
+      // Ignore a swipe that was still in flight when the snake crashed.
+      if (this.mode === 'over' && Date.now() - this.overAt < 600) return
+      this.start()
+      return
+    }
+    if (swipe) {
+      if (Math.abs(dx) > Math.abs(dy)) turn(game, dx > 0 ? 'right' : 'left')
+      else turn(game, dy > 0 ? 'down' : 'up')
+    } else {
+      turnSide(game, s.x < this.origin.width / 2 ? 'left' : 'right')
+    }
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  background-color: #000000;
+}
+
+.bar {
+  width: 180px;
+  height: 36px;
+  margin-top: 6px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.score {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.best {
+  font-size: 14px;
+  color: #8e8e93;
+}
+
+.field {
+  width: 180px;
+  height: 384px;
+  border-radius: 6px;
+  background-color: #141416;
+}
+
+.seg {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background-color: #30d158;
+}
+
+.head {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background-color: #c8f7d2;
+}
+
+.food {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #ff453a;
+}
+
+.overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 180px;
+  height: 384px;
+  border-radius: 6px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+
+.sub {
+  margin-top: 8px;
+  font-size: 16px;
+  color: #30d158;
+  text-align: center;
+}
+
+.help {
+  margin-top: 24px;
+  width: 150px;
+  font-size: 13px;
+  color: #8e8e93;
+  text-align: center;
+}
+</style>
