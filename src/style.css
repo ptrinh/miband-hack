@@ -155,4 +155,5 @@ ul.catalog .name small { white-space: normal; }
 .note-row input { grid-column: 1; }
 .note-row textarea { grid-column: 1; width: 100%; font: 14px var(--sans); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical; }
 .note-row button { grid-column: 2; grid-row: 1; align-self: center; }
+.notes-actions { margin-top: 10px; gap: 8px; }
 .hidden { display: none !important; }

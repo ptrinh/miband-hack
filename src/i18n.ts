@@ -159,6 +159,13 @@ const en = {
   notesBuilding: "Packing your notes…",
   notesSample1Title: "Welcome",
   notesSample1Body: "Edit these notes on miband.trinh.uk, then press Add.",
+  notesExport: "Export",
+  notesImport: "Import",
+  notesSaved: "✓ Saved in this browser",
+  notesSaveFailed: "⚠ This browser blocks storage — export your notes to keep them",
+  notesImported: "Imported {n} notes",
+  notesImportBad: "Not a valid notes file",
+  notesReplaceConfirm: "Replace your {n} current notes with {m} imported notes?",
 };
 
 export type Key = keyof typeof en;
@@ -311,6 +318,13 @@ const zh: Record<Key, string> = {
   notesBuilding: "正在打包您的笔记…",
   notesSample1Title: "欢迎",
   notesSample1Body: "在 miband.trinh.uk 上编辑这些笔记，然后点击“添加”。",
+  notesExport: "导出",
+  notesImport: "导入",
+  notesSaved: "✓ 已保存在此浏览器中",
+  notesSaveFailed: "⚠ 此浏览器禁止本地存储——请导出笔记以免丢失",
+  notesImported: "已导入 {n} 条笔记",
+  notesImportBad: "不是有效的笔记文件",
+  notesReplaceConfirm: "用导入的 {m} 条笔记替换当前的 {n} 条笔记？",
 };
 
 const vi: Record<Key, string> = {
@@ -461,6 +475,13 @@ const vi: Record<Key, string> = {
   notesBuilding: "Đang đóng gói note…",
   notesSample1Title: "Chào bạn",
   notesSample1Body: "Sửa các note này trên miband.trinh.uk rồi bấm Add.",
+  notesExport: "Export",
+  notesImport: "Import",
+  notesSaved: "✓ Đã lưu trên trình duyệt",
+  notesSaveFailed: "⚠ Trình duyệt chặn lưu trữ — hãy Export để giữ note",
+  notesImported: "Đã import {n} note",
+  notesImportBad: "File không phải danh sách note hợp lệ",
+  notesReplaceConfirm: "Thay {n} note hiện tại bằng {m} note vừa import?",
 };
 
 const DICTS: Record<Lang, Record<Key, string>> = { en, zh, vi };

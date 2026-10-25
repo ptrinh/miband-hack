@@ -60,7 +60,7 @@ Mỗi chiếc band có một chìa khoá riêng do Xiaomi cấp. Không có chì
 
 **Cách nhanh nhất:** ở mục **"App mẫu"**, bấm **Add** cạnh app bạn muốn (ví dụ *Calculator*). Đợi thanh tiến độ chạy hết là xong, app sẽ hiện trong danh sách ứng dụng trên band.
 
-**App Notes (note của riêng bạn):** bấm **Edit notes / Sửa note** cạnh app Notes, gõ tiêu đề và nội dung từng note (thêm bao nhiêu cũng được), rồi bấm **Add**. Trên band: danh sách note → bấm vào để đọc → nút **Back** để quay lại. Muốn đổi nội dung thì sửa lại trên trang rồi bấm **Add** lần nữa. Note được lưu trên trình duyệt của bạn.
+**App Notes (note của riêng bạn):** bấm **Edit notes / Sửa note** cạnh app Notes, gõ tiêu đề và nội dung từng note (thêm bao nhiêu cũng được), rồi bấm **Add**. Trên band: danh sách note → bấm vào để đọc → nút **Back** để quay lại. Muốn đổi nội dung thì sửa lại trên trang rồi bấm **Add** lần nữa. Note được **tự lưu trên trình duyệt**: tải lại trang hay mở lại hôm sau vẫn còn. Dùng **Export** để tải file sao lưu `.json` (nên làm, vì xoá dữ liệu trình duyệt là mất note), và **Import** để nạp lại hoặc chuyển sang máy khác.
 
 **Đổi ngôn ngữ:** nút **EN · 中文 · VI** ở góc trên.
 

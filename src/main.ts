@@ -110,7 +110,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div id="notes-editor" class="notes-editor hidden">
         <p class="hint" data-i18n="notesHint"></p>
         <div id="notes-list"></div>
-        <button class="small" id="btn-note-add" data-i18n="notesAdd"></button>
+        <div class="row notes-actions">
+          <button class="small" id="btn-note-add" data-i18n="notesAdd"></button>
+          <button class="small ghost" id="btn-notes-export" data-i18n="notesExport"></button>
+          <button class="small ghost" id="btn-notes-import" data-i18n="notesImport"></button>
+          <input type="file" id="notes-file" accept=".json,application/json" class="hidden" />
+          <span class="progress-label" id="notes-saved" style="margin:0 0 0 auto"></span>
+        </div>
       </div>
       <p class="hint" id="catalog-hint" data-i18n-html="catalogHint"></p>
     </section>
@@ -589,16 +595,57 @@ function loadNotes(): Note[] {
 
 let notes: Note[] = loadNotes();
 
+let notesSaveOk = true;
+
 function saveNotes(): void {
   try {
     localStorage.setItem(NOTES_STORAGE, JSON.stringify(notes));
+    notesSaveOk = true;
   } catch {
-    /* ignore */
+    notesSaveOk = false;
   }
+  renderNotesStatus();
+}
+
+function renderNotesStatus(): void {
+  $('notes-saved').textContent = notesSaveOk ? t('notesSaved') : t('notesSaveFailed');
+}
+
+/** Accepts our export ({notes}), the app's own notes.json, or a bare [{title, body}] array. */
+function parseNotesFile(text: string): Note[] {
+  const data = JSON.parse(text) as unknown;
+  const list = Array.isArray(data) ? data : (data as { notes?: unknown })?.notes;
+  if (!Array.isArray(list)) throw new Error(t('notesImportBad'));
+  return list.map((n) => {
+    const o = n as { title?: unknown; body?: unknown };
+    if (typeof o?.title !== 'string' && typeof o?.body !== 'string') throw new Error(t('notesImportBad'));
+    return { title: String(o.title ?? ''), body: String(o.body ?? '') };
+  });
+}
+
+function exportNotes(): void {
+  const json = JSON.stringify({ app: 'miband-hack-notes', version: 1, exported: new Date().toISOString(), notes }, null, 2);
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `miband-notes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importNotes(file: File): Promise<void> {
+  const imported = parseNotesFile(await file.text());
+  const current = notes.filter((n) => n.title.trim() || n.body.trim()).length;
+  if (current > 0 && !confirm(t('notesReplaceConfirm', { n: current, m: imported.length }))) return;
+  notes = imported;
+  saveNotes();
+  renderNotesEditor();
+  toast(t('notesImported', { n: imported.length }));
 }
 
 /** Re-renders the note rows; only called on add/remove/language change so typing keeps focus. */
 function renderNotesEditor(): void {
+  renderNotesStatus();
   const box = $('notes-list');
   box.replaceChildren();
   notes.forEach((note, i) => {
@@ -633,6 +680,15 @@ function renderNotesEditor(): void {
     box.appendChild(row);
   });
 }
+
+$('btn-notes-export').onclick = () => exportNotes();
+$('btn-notes-import').onclick = () => $<HTMLInputElement>('notes-file').click();
+$<HTMLInputElement>('notes-file').onchange = (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ''; // allow importing the same file again
+  if (file) importNotes(file).catch(fail);
+};
 
 $('btn-note-add').onclick = () => {
   notes.push({ title: '', body: '' });
