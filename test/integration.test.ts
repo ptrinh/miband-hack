@@ -44,6 +44,16 @@ describe('end-to-end against a simulated SPP band', () => {
     expect(dev.apps.map((a) => a.id)).toEqual(['com.example.hello']);
   });
 
+  it('refuses an install that would leave less than a fifth of the storage free', async () => {
+    const secret = randomBytes(16);
+    // 90 KB free of 400 KB: a 20 KB app would leave about 70 KB, under the 80 KB (20 %) reserve.
+    const band = new FakeBand(secret, { txWindow: 4, chunkSize: 1024, ackDelayMs: 1, storage: { used: 310_000, total: 400_000 } });
+    const dev = new XiaomiDevice(new StreamLink(band.transport, 'detect'), new Uint8Array(secret));
+    await dev.connect();
+    await expect(dev.install(parseFile(makeRpk(20_000)), () => {})).rejects.toThrow(/storage|room/i);
+    expect(band.received.rpk).toBeUndefined();
+  });
+
   it('fails cleanly with a wrong auth key', async () => {
     const band = new FakeBand(randomBytes(16), { txWindow: 32, chunkSize: 2048, ackDelayMs: 1 });
     const dev = new XiaomiDevice(new StreamLink(band.transport, 'detect'), new Uint8Array(randomBytes(16)));

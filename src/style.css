@@ -237,3 +237,5 @@ input[type='text'].deck-name { margin-top: 10px; font: 600 15px var(--sans); }
 }
 .list li.found { display: block; font-weight: 600; color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); border-radius: 12px; padding: 10px 12px; }
 .accent { color: var(--accent); }
+
+#d-storage.low { color: var(--err); }

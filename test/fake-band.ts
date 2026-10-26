@@ -50,6 +50,8 @@ export class FakeBand {
       bound?: { deviceId?: string; sessionDeviceType?: number };
       /** Recorded health files (id | 00 | body | crc32), listed under "today" or "past". */
       health?: { today: Uint8Array[]; past: Uint8Array[]; activityChunk?: number; corrupt?: string[]; drop?: string[] };
+      /** Bytes used / total reported by GET_STORAGE_INFO; default 1 MB of 128 MB. */
+      storage?: { used: number; total: number };
     },
   ) {
     const band = this;
@@ -221,6 +223,8 @@ export class FakeBand {
     }
     if (cmd.type === 2 && cmd.subtype === 2) {
       this.sendCommand({ type: 2, subtype: 2, system: { deviceInfo: { model: 'Xiaomi Smart Band 9', firmware: '2.3.93', serialNumber: 'FAKE' } } }, true);
+    } else if (cmd.type === 2 && cmd.subtype === 62) {
+      this.sendCommand({ type: 2, subtype: 62, system: { storageInfo: this.opts.storage ?? { used: 2 ** 20, total: 2 ** 27 } } }, true);
     } else if (cmd.type === 2 && cmd.subtype === 1) {
       this.sendCommand({ type: 2, subtype: 1, system: { power: { battery: { level: 77 } } } }, true);
     } else if (cmd.type === 20 && cmd.subtype === 0) {

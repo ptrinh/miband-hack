@@ -59,6 +59,13 @@ const AUTH_PROMPT_ATTEMPT_TIMEOUT_MS = 30_000;
 const BIND_STATUS_TIMEOUT_MS = 3_000;
 const REPLY_TIMEOUT_MS = 15_000;
 const INSTALL_CONFIRM_TIMEOUT_MS = 90_000;
+/**
+ * Share of the band's storage an install must leave free. A Mi Band 10 whose storage filled up after a few
+ * tries lost its fonts and could no longer pair (2026-10-26); Vela needs room to write its own files.
+ */
+export const STORAGE_RESERVE = 0.2;
+const fmtMb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
+const STORAGE_TIMEOUT_MS = 5_000;
 // Gadgetbridge gives up on a file after 5 s without a chunk; a little more slack for Web Serial.
 const FILE_CHUNK_TIMEOUT_MS = 10_000;
 
@@ -431,8 +438,22 @@ export class XiaomiDevice {
     ]);
   }
 
-  refreshStorage(): Promise<Command> {
-    return this.request({ type: SYSTEM, subtype: SYS_STORAGE }, (c) => c.type === SYSTEM && c.subtype === SYS_STORAGE, t('whatStorage'));
+  refreshStorage(timeoutMs?: number): Promise<Command> {
+    return this.request({ type: SYSTEM, subtype: SYS_STORAGE }, (c) => c.type === SYSTEM && c.subtype === SYS_STORAGE, t('whatStorage'), timeoutMs);
+  }
+
+  /** Refuses an install that would leave less than STORAGE_RESERVE of the band's storage free. */
+  private async ensureSpace(size: number): Promise<void> {
+    await this.refreshStorage(STORAGE_TIMEOUT_MS).catch(() => {});
+    const st = this.info.storage;
+    if (!st?.total) {
+      this.onLog('⚠ the band did not report its storage; installing without the free-space check');
+      return;
+    }
+    const free = st.total - st.used;
+    if (free - size < STORAGE_RESERVE * st.total) {
+      throw new Error(t('errStorageLow', { size: fmtMb(size), free: fmtMb(free), reserve: Math.round(STORAGE_RESERVE * 100) }));
+    }
   }
 
   refreshApps(): Promise<Command> {
@@ -522,6 +543,7 @@ export class XiaomiDevice {
     if (this.busy) throw new Error(t('errBusy'));
     this.busy = true;
     try {
+      await this.ensureSpace(file.bytes.length);
       if (file.kind === 'rpk') await this.installRpk(file, onProgress);
       else await this.installWatchface(file, onProgress);
     } finally {

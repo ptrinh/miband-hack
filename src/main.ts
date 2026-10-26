@@ -22,6 +22,7 @@ import { checklistsForBand, mountChecklist, renderChecklistEditor } from './chec
 import { mountHealth, renderHealth } from './health/ui';
 import { decksForInstall, mountDecksEditor, renderDecksEditor } from './decks/ui';
 import { buildBand8Face } from './watchface/band8';
+import { STORAGE_RESERVE } from './device';
 import { renderBand8Face } from './watchface/render';
 
 
@@ -456,6 +457,7 @@ function render(): void {
     $('d-link').textContent = device.link.name;
     const st = i.storage;
     $('d-storage').textContent = st && st.total ? `${fmtBytes(st.total - st.used)} / ${fmtBytes(st.total)}` : '—';
+    $('d-storage').classList.toggle('low', !!st?.total && st.total - st.used < STORAGE_RESERVE * st.total);
   }
   renderApps(connected ? device!.apps : null);
   renderFaces(connected ? device!.faces : null);
@@ -886,6 +888,21 @@ appDialog.onclose = () => {
   if (id) document.querySelector<HTMLButtonElement>(`.catalog-open[data-app-id="${CSS.escape(id)}"]`)?.focus();
 };
 
+/**
+ * The last build of each customised app with the content it was built from. A retry with unchanged content
+ * sends the same bytes (same md5), so the band resumes its partial upload instead of keeping one more.
+ */
+const customBuilds = new Map<string, { content: string; bytes: Uint8Array }>();
+
+async function buildOnce(appId: string, content: unknown, build: () => Promise<Uint8Array>): Promise<Uint8Array> {
+  const key = JSON.stringify(content);
+  const last = customBuilds.get(appId);
+  if (last?.content === key) return last.bytes;
+  const bytes = await build();
+  customBuilds.set(appId, { content: key, bytes });
+  return bytes;
+}
+
 async function installFromCatalog(app: CatalogApp): Promise<void> {
   if (!device?.connected) throw new Error(t('notConnected'));
   catalogBusy = true;
@@ -902,13 +919,19 @@ async function installFromCatalog(app: CatalogApp): Promise<void> {
     let bytes: Uint8Array = new Uint8Array(await r.arrayBuffer());
     if (app.customize === 'notes') {
       label.textContent = t('notesBuilding');
-      bytes = await buildNotesRpk(bytes, notes.filter((n) => n.title.trim() || n.body.trim()), undefined, { versionCode: customVersionCode() });
+      const content = notes.filter((n) => n.title.trim() || n.body.trim());
+      const base = bytes;
+      bytes = await buildOnce(app.id, content, () => buildNotesRpk(base, content, undefined, { versionCode: customVersionCode() }));
     } else if (app.customize === 'checklist') {
       label.textContent = t('checklistBuilding');
-      bytes = await buildChecklistRpk(bytes, checklistsForBand(), undefined, { versionCode: customVersionCode() });
+      const content = checklistsForBand();
+      const base = bytes;
+      bytes = await buildOnce(app.id, content, () => buildChecklistRpk(base, content, undefined, { versionCode: customVersionCode() }));
     } else if (app.customize === 'flashcards') {
       label.textContent = t('decksBuilding');
-      bytes = await buildFlashcardsRpk(bytes, decksForInstall(), undefined, { versionCode: customVersionCode() });
+      const content = decksForInstall();
+      const base = bytes;
+      bytes = await buildOnce(app.id, content, () => buildFlashcardsRpk(base, content, undefined, { versionCode: customVersionCode() }));
     }
     const parsed = parseFile(bytes);
     if (parsed.kind !== 'rpk') throw new Error(parsed.kind === 'unsupported' ? parsed.reason : t('notRpk'));
