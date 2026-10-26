@@ -50,7 +50,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
   <div class="grid">
     <section class="card" id="card-key">
-      <h2><span class="step">1</span><span data-i18n="keyTitle"></span></h2>
+      <h2><span class="step">1</span><span data-i18n="keyTitle"></span><span class="card-sum" id="sum-key"></span></h2>
       <label for="authkey" data-i18n="keyLabel"></label>
       <input id="authkey" type="text" placeholder="0x0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false" />
       <label for="deviceid" style="font-weight:400;color:var(--muted)" data-i18n="deviceIdLabel"></label>
@@ -115,12 +115,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="card" id="card-connect">
-      <h2><span class="step">2</span><span data-i18n="connTitle"></span></h2>
+      <h2><span class="step">2</span><span data-i18n="connTitle"></span><span class="card-sum" id="sum-connect"></span></h2>
       <div class="connect-opts">
         <button class="connect-opt primary" id="btn-ble"><span data-i18n="bleBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="bleSub" style="color:inherit;opacity:.85"></span></button>
         <button class="connect-opt" id="btn-spp"><span data-i18n="sppBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="sppSub"></span></button>
         <button class="connect-opt hidden" id="btn-bridge"><span data-i18n="bridgeBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n-html="bridgeSub"></span></button>
-        <button class="ghost hidden" id="btn-disconnect" data-i18n="disconnect"></button>
       </div>
       <details>
         <summary data-i18n="beforeConnect"></summary>
@@ -155,6 +154,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div class="stat"><b id="d-storage">—</b><span data-i18n="storageFree"></span></div>
       </div>
       <div class="row cleanup">
+        <button class="small" id="btn-disconnect" data-i18n="disconnect"></button>
         <button class="small ghost" id="btn-storage" data-i18n="storageRefresh"></button>
         <button class="small ghost" id="btn-del-apps" data-i18n="delAllApps"></button>
         <button class="small ghost" id="btn-del-faces" data-i18n="delAllFaces"></button>
@@ -164,7 +164,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="card span-2" id="card-catalog">
-      <h2><span class="step">3</span><span data-i18n="catalogTitle"></span></h2>
+      <h2><span class="step">3</span><span data-i18n="catalogTitle"></span><span class="card-sum" id="sum-catalog"></span></h2>
       <ul class="list catalog" id="catalog"><li class="empty" data-i18n="catalogLoading"></li></ul>
       <p class="hint" data-i18n="catalogTap"></p>
       <div id="notes-editor" class="notes-editor hidden">
@@ -184,7 +184,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="card span-2" id="card-install">
-      <h2><span class="step">4</span><span data-i18n="fileTitle"></span></h2>
+      <h2><span class="step">4</span><span data-i18n="fileTitle"></span><span class="card-sum" id="sum-install"></span></h2>
       <div class="drop" id="drop" tabindex="0" role="button">
         <span data-i18n-html="dropMain"></span><br />
         <small data-i18n="dropSub"></small>
@@ -218,24 +218,21 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       </div>
     </section>
 
-    <section class="card">
-      <h2><span data-i18n="appsTitle"></span> <button class="small ghost" id="btn-refresh-apps" disabled style="margin-left:auto" data-i18n="refresh"></button></h2>
+    <section class="card" id="card-apps">
+      <h2><span data-i18n="appsTitle"></span><span class="card-sum" id="sum-apps"></span><button class="small ghost" id="btn-refresh-apps" disabled data-i18n="refresh"></button></h2>
       <ul class="list" id="apps"></ul>
     </section>
 
-    <section class="card">
-      <h2><span data-i18n="facesTitle"></span> <button class="small ghost" id="btn-refresh-faces" disabled style="margin-left:auto" data-i18n="refresh"></button></h2>
+    <section class="card" id="card-faces">
+      <h2><span data-i18n="facesTitle"></span><span class="card-sum" id="sum-faces"></span><button class="small ghost" id="btn-refresh-faces" disabled data-i18n="refresh"></button></h2>
       <ul class="list" id="faces"></ul>
     </section>
 
     <section class="card span-2" id="card-health"></section>
 
-    <section class="card span-2">
-      <details open>
-        <summary data-i18n="logTitle"></summary>
-        <div class="row" style="justify-content:flex-end;margin:6px 0"><button class="small" id="btn-log-copy" data-i18n="logCopy"></button></div>
-        <pre class="log" id="log"></pre>
-      </details>
+    <section class="card span-2" id="card-log">
+      <h2><span data-i18n="logTitle"></span><span class="card-sum" id="sum-log"></span><button class="small ghost" id="btn-log-copy" data-i18n="logCopy"></button></h2>
+      <pre class="log" id="log"></pre>
     </section>
   </div>
 
@@ -278,6 +275,10 @@ function log(msg: string, cls?: 'e' | 'ok'): void {
   line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
+  if (cls === 'e' && !logHasError) {
+    logHasError = true;
+    if (document.getElementById('card-log')?.querySelector('.card-body')) render();
+  }
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -459,11 +460,86 @@ function render(): void {
     $('d-storage').textContent = st && st.total ? `${fmtBytes(st.total - st.used)} / ${fmtBytes(st.total)}` : '—';
     $('d-storage').classList.toggle('low', !!st?.total && st.total - st.used < STORAGE_RESERVE * st.total);
   }
+  renderFolds(connected);
   renderApps(connected ? device!.apps : null);
   renderFaces(connected ? device!.faces : null);
   renderCatalog();
   renderAppDialogAction();
   renderHealth();
+}
+
+// ---------------------------------------------------------------- folding ---
+// Every card folds to its title. render() opens what the user needs next and folds what is done or not yet
+// useful; a card opened or closed by hand stays so until its automatic state changes.
+
+const folds = new Map<HTMLElement, { auto: boolean; open: boolean }>();
+/** True while the key in the field came from storage untouched: it needs no attention, so its card folds. */
+let keyFromStorage = false;
+let logHasError = false;
+
+function makeFoldable(card: HTMLElement): void {
+  const h2 = card.querySelector('h2')!;
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  const inner = document.createElement('div');
+  while (h2.nextSibling) inner.appendChild(h2.nextSibling);
+  body.appendChild(inner);
+  card.appendChild(body);
+  h2.tabIndex = 0;
+  h2.setAttribute('role', 'button');
+  const toggle = () => {
+    folds.set(card, { auto: card.dataset.auto === '1', open: card.classList.contains('collapsed') });
+    render();
+  };
+  h2.onclick = (e) => {
+    if (!(e.target as Element).closest('button, a, input, select')) toggle();
+  };
+  h2.onkeydown = (e) => {
+    if (e.target === h2 && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      toggle();
+    }
+  };
+}
+
+function fold(id: string, autoOpen: boolean, summary = ''): void {
+  const card = $(id);
+  const manual = folds.get(card);
+  if (manual && manual.auto !== autoOpen) folds.delete(card);
+  const open = manual && manual.auto === autoOpen ? manual.open : autoOpen;
+  card.dataset.auto = autoOpen ? '1' : '0';
+  card.classList.toggle('collapsed', !open);
+  card.querySelector('h2')!.setAttribute('aria-expanded', String(open));
+  const sum = card.querySelector('.card-sum');
+  if (sum) sum.textContent = open ? '' : summary;
+}
+
+function keyReady(): boolean {
+  try {
+    parseAuthKey($<HTMLInputElement>('authkey').value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderFolds(connected: boolean): void {
+  const keyOk = keyReady();
+  const tail = $<HTMLInputElement>('authkey').value.trim().replace(/^0x/i, '').slice(-4);
+  const busy = !!device?.isBusy || catalogBusy;
+  // The one step that needs the user now gets the accent ring.
+  const focus = !keyOk ? 'card-key' : !connected ? 'card-connect' : pending || busy ? 'card-install' : 'card-catalog';
+  for (const id of ['card-key', 'card-connect', 'card-catalog', 'card-install']) $(id).classList.toggle('focus', id === focus);
+  $('card-key').classList.toggle('done', keyOk);
+
+  fold('card-key', !connected && !(keyOk && keyFromStorage), keyOk ? t('sumKey', { tail }) : '');
+  fold('card-connect', !connected, connected ? `${t('connected')} · ${device!.link.name}` : '');
+  fold('card-catalog', connected, connected ? '' : t('sumConnectFirst'));
+  fold('card-install', !!pending || busy, '.rpk · .bin · .face');
+  fold('card-apps', false, connected ? String(device!.apps?.length ?? '—') : '');
+  fold('card-faces', false, connected ? String(device!.faces?.length ?? '—') : '');
+  fold('card-health', false);
+  fold('card-log', logHasError, String($('log').childElementCount || ''));
 }
 
 function emptyItem(text: string): HTMLLIElement {
@@ -654,6 +730,7 @@ const saved = storage.get();
 if (saved) {
   $<HTMLInputElement>('authkey').value = saved;
   $<HTMLInputElement>('remember').checked = true;
+  keyFromStorage = true;
 }
 $<HTMLInputElement>('deviceid').value = deviceIdStorage.get() ?? '';
 // ?session=ios[&name=iPhone%2013%20mini&os=27.0.1]: send the session config the way Mi Fitness on iOS does.
@@ -1072,6 +1149,7 @@ function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
       head.textContent = t('keyFilledHead');
       toast(t('keyFilled', { name: r.title }));
       log(`Filled in key of ${r.title}`, 'ok');
+      render();
     });
     use.classList.add('primary');
     li.append(nameCell(r.title, `${r.sub}${valid ? '' : ` · ${t('keyWarn', { n: r.key.length })}`}`), use);
@@ -1278,6 +1356,18 @@ function localize(): void {
 }
 
 mountHealth($('card-health'), { device: () => device, log, toast, fail });
+for (const id of ['card-key', 'card-connect', 'card-catalog', 'card-install', 'card-apps', 'card-faces', 'card-health', 'card-log']) makeFoldable($(id));
+// A file dragged over the folded install card opens it, so it can be dropped.
+$('card-install').addEventListener('dragenter', () => {
+  const card = $('card-install');
+  if (!card.classList.contains('collapsed')) return;
+  folds.set(card, { auto: card.dataset.auto === '1', open: true });
+  render();
+});
+$('authkey').addEventListener('input', () => {
+  keyFromStorage = false;
+  render();
+});
 mountChecklist($('checklist-editor'), { toast, fail });
 mountDecksEditor($('decks-editor'), { toast, fail });
 localize();

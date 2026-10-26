@@ -104,6 +104,8 @@ const en = {
   footer2: `Protocol ported from <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">Source on GitHub</a>`,
 
   notConnected: 'Not connected',
+  sumKey: 'Key ••••{tail}',
+  sumConnectFirst: 'Connect your band to install',
   noApps: 'No third-party apps yet',
   noFaces: 'No watchfaces',
   active: 'active',
@@ -447,6 +449,8 @@ const zh: Record<Key, string> = {
   footer2: `协议移植自 <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">GitHub 源代码</a>`,
 
   notConnected: '未连接',
+  sumKey: '密钥 ••••{tail}',
+  sumConnectFirst: '连接手环后即可安装',
   noApps: '暂无第三方应用',
   noFaces: '没有表盘',
   active: '使用中',
@@ -788,6 +792,8 @@ const vi: Record<Key, string> = {
   footer2: `Giao thức port từ <a href="${GB_REPO}" target="_blank" rel="noopener">Gadgetbridge</a> · Giấy phép AGPL-3.0 · <a href="https://github.com/ptrinh/miband-hack" target="_blank" rel="noopener">Mã nguồn trên GitHub</a>`,
 
   notConnected: 'Chưa kết nối',
+  sumKey: 'Key ••••{tail}',
+  sumConnectFirst: 'Kết nối band để cài',
   noApps: 'Chưa có app bên thứ ba nào',
   noFaces: 'Không có watchface',
   active: 'đang dùng',
