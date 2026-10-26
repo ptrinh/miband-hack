@@ -5,6 +5,10 @@ export interface Link {
   readonly name: string;
   /** The link runs over Bluetooth LE (BLE V1 or V2), as an iPhone's Mi Fitness does. */
   readonly overBle: boolean;
+  /** The name the band advertises over Bluetooth, when the link knows it. */
+  readonly deviceName?: string;
+  /** Bytes the link adds in front of each upload part inside the band's chunk size (channel + opcode on SPP/BLE V2); default 2. */
+  readonly uploadPartOverhead?: number;
   auth: AuthSession | null;
   /** The band is ready for the auth handshake (session established). */
   onReadyForAuth: () => void;

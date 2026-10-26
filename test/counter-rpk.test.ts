@@ -48,7 +48,7 @@ describe('Counter demo app', () => {
     expect(Buffer.from(parseSignature(rpk)!.certificateDer).equals(der)).toBe(true);
 
     const entries = readZip(rpk).entries;
-    expect(entries.map((e) => e.name)).toEqual(expect.arrayContaining([CERT_PATH, 'pages/index/index.js', 'common/logo.png']));
+    expect(entries.map((e) => e.name)).toEqual(expect.arrayContaining([CERT_PATH, 'pages/index/index.jsc', 'common/logo.png']));
     const manifest = JSON.parse(td.decode(entries.find((e) => e.name === 'manifest.json')!.data));
     expect(manifest.config.designWidth).toBe(192);
     expect(manifest.versionCode).toBe(1);

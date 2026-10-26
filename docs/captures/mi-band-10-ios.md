@@ -42,13 +42,20 @@ your own capture, see [How to capture](#how-to-capture).
 
    Re-binding the band changes both.
 
-Conclusion: a band bound to an iOS device only authenticates that device. A browser on another computer
-cannot get past NO_BOUND by changing the auth messages, and it cannot bind the band itself:
-- The band asks for SERVER_PSK binding (`verify_mode = 1` in its BIND_INFO_V2), which needs a value signed
-  by Xiaomi's servers.
-- Web Bluetooth on macOS cannot create a bond.
+Conclusion: the tested browser AUTH variants failed with NO_BOUND, while the iPhone authenticated
+with the same key. This does not yet distinguish an identity-specific gate from bond/link-security
+requirements. Rechecking the HCI capture found encryption enabled before each successful AUTH exchange.
 
-Details and sources: [binding-research.md](../binding-research.md).
+Native macOS also cannot explicitly initiate BLE pairing through CoreBluetooth; protected GATT access
+may trigger OS pairing. A native client is therefore an experiment, not a guarantee of a new bond.
+
+In the October 26 follow-up, the user accepted the band's pairing prompt and macOS reported
+`paired=true` for the public-address IOBluetooth record. A fresh native BLE session still received
+NO_BOUND for AUTH 26. BLE link encryption on that Mac session was not captured, so this does not yet
+identify the exact firmware gate.
+
+Updated analysis: [binding-research.md](../binding-research.md).
+Native test results: [mi-band-10-native-macos.md](mi-band-10-native-macos.md).
 
 ## Session config
 

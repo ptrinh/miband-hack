@@ -10,11 +10,12 @@
   "scripts": {
     "build": "aiot build",
     "presign": "mkdir -p sign && cp ../../src/rpk/demo-key/private.pem ../../src/rpk/demo-key/certificate.pem sign/",
-    "release": "npm run presign && aiot release",
+    "release": "npm run presign && aiot release --enable-jsc",
     "publish-demo": "npm run release && cp dist/uk.trinh.miband.flashcards.release.1.0.0.rpk ../../public/apps/flashcards.rpk && cp src/common/logo.png ../../public/apps/flashcards.png",
     "test": "node --no-warnings test/deck-check.mjs && node --no-warnings test/quiz-check.mjs"
   },
   "devDependencies": {
+    "@aiot-toolkit/jsc": "1.0.10",
     "aiot-toolkit": "2.0.5"
   }
 }

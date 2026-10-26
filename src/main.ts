@@ -8,12 +8,21 @@ import type { Link } from './protocol/link';
 import { StreamLink } from './protocol/stream-link';
 import { requestBle, webBluetoothAvailable } from './transport/ble';
 import { SerialTransport, webSerialAvailable } from './transport/serial';
+import { BridgeTransport } from './transport/bridge';
+
+// The Mac helper is a developer tool: offer it only on a locally served page, not on miband.trinh.uk.
+const SHOW_BRIDGE = ['localhost', '127.0.0.1'].includes(location.hostname);
+// The Band 8 face builder is unproven on a real band (2026-10-26: the band dropped its binding after the first
+// install), so the public page shows it only with ?face.
+const SHOW_FACE_MAKER = SHOW_BRIDGE || new URLSearchParams(location.search).has('face');
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
 import { buildChecklistRpk, buildFlashcardsRpk, buildNotesRpk, customVersionCode, type Note } from './rpk';
 import { bindImport, downloadJson, loadStored, saveStored } from './custom-editor';
 import { checklistsForBand, mountChecklist, renderChecklistEditor } from './checklist/ui';
 import { mountHealth, renderHealth } from './health/ui';
 import { decksForInstall, mountDecksEditor, renderDecksEditor } from './decks/ui';
+import { buildBand8Face } from './watchface/band8';
+import { renderBand8Face } from './watchface/render';
 
 
 const KEY_STORAGE = 'miband-hack.authkey';
@@ -30,7 +39,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="row">
       <button class="small hidden" id="btn-install-app" data-i18n="installApp"></button>
       <div class="lang-switch" id="lang-switch" role="group" aria-label="Language"></div>
-      <span class="tag">Mi Band 8 · 9 · 10 · Chrome / Edge</span>
+      <span class="tag">Mi Band 8 · 9 · 10 · 11 · Chrome / Edge</span>
+      <a class="tag" href="https://github.com/ptrinh/miband-hack/" target="_blank" rel="noopener">GitHub</a>
     </div>
   </header>
 
@@ -107,6 +117,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="connect-opts">
         <button class="connect-opt primary" id="btn-ble"><span data-i18n="bleBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="bleSub" style="color:inherit;opacity:.85"></span></button>
         <button class="connect-opt" id="btn-spp"><span data-i18n="sppBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n="sppSub"></span></button>
+        <button class="connect-opt hidden" id="btn-bridge"><span data-i18n="bridgeBtn" style="color:inherit;font-weight:600;font-size:14px"></span><span data-i18n-html="bridgeSub"></span></button>
         <button class="ghost hidden" id="btn-disconnect" data-i18n="disconnect"></button>
       </div>
       <details>
@@ -115,6 +126,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <li data-i18n-html="before1"></li>
           <li data-i18n-html="before2"></li>
           <li data-i18n-html="before3"></li>
+          <li data-i18n-html="before4"></li>
+          <li data-i18n-html="before5"></li>
+          <li data-i18n-html="before6"></li>
+          <li data-i18n-html="before7"></li>
         </ol>
         <label for="auth-variant" style="font-weight:400;color:var(--muted)" data-i18n="authVariantLabel"></label>
         <select id="auth-variant">
@@ -135,6 +150,14 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div class="stat"><b id="d-fw">—</b><span data-i18n="firmware"></span></div>
         <div class="stat"><b id="d-batt">—</b><span data-i18n="battery"></span></div>
         <div class="stat"><b id="d-link">—</b><span data-i18n="protocol"></span></div>
+        <div class="stat"><b id="d-storage">—</b><span data-i18n="storageFree"></span></div>
+      </div>
+      <div class="row cleanup">
+        <button class="small ghost" id="btn-storage" data-i18n="storageRefresh"></button>
+        <button class="small ghost" id="btn-del-apps" data-i18n="delAllApps"></button>
+        <button class="small ghost" id="btn-del-faces" data-i18n="delAllFaces"></button>
+        <button class="small ghost" id="btn-clear-health" data-i18n="clearHealth"></button>
+        <span class="progress-label" id="cleanup-status" style="margin:0"></span>
       </div>
     </section>
 
@@ -173,6 +196,23 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
         <div class="progress hidden" id="progress"><div id="progress-bar"></div></div>
         <div class="progress-label" id="progress-label"></div>
+      </div>
+    </section>
+
+    <section class="card span-2" id="card-face">
+      <h2><span data-i18n="faceTitle"></span></h2>
+      <div class="face-maker">
+        <canvas id="face-canvas" width="192" height="490"></canvas>
+        <div class="face-form">
+          <label><span data-i18n="faceText"></span><input type="text" id="face-text" maxlength="40" value="KHOI TRINH" /></label>
+          <label><span data-i18n="faceAccent"></span><input type="color" id="face-accent" value="#ffb02e" /></label>
+          <div class="row">
+            <button class="primary" id="btn-face-install" disabled data-i18n="faceInstall"></button>
+            <button class="small ghost" id="btn-face-download" data-i18n="faceDownload"></button>
+          </div>
+          <p class="hint" id="face-size"></p>
+          <p class="hint" data-i18n="faceHint"></p>
+        </div>
       </div>
     </section>
 
@@ -327,7 +367,7 @@ function readDeviceId(): string {
 }
 
 /** One line about the browser and page, so a pasted log says where it came from. */
-function logEnvironment(kind: 'spp' | 'ble'): void {
+function logEnvironment(kind: 'spp' | 'ble' | 'bridge'): void {
   const ua = (navigator as Navigator & { userAgentData?: { brands?: { brand: string; version: string }[]; platform?: string } }).userAgentData;
   const browser = ua?.brands?.filter((b) => !/not.?a.?brand/i.test(b.brand)).map((b) => `${b.brand} ${b.version}`).join(', ');
   log(
@@ -337,7 +377,7 @@ function logEnvironment(kind: 'spp' | 'ble'): void {
   );
 }
 
-async function connect(kind: 'spp' | 'ble'): Promise<void> {
+async function connect(kind: 'spp' | 'ble' | 'bridge'): Promise<void> {
   let key: Uint8Array;
   try {
     key = readKey();
@@ -353,6 +393,8 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
     if (kind === 'spp') {
       log(t('pickSpp'));
       link = new StreamLink(await SerialTransport.request(), 'detect');
+    } else if (kind === 'bridge') {
+      link = new StreamLink(await BridgeTransport.open((m) => log(m)), 'detect');
     } else {
       log(t('pickBle'));
       const c = await requestBle((m) => log(m));
@@ -384,6 +426,7 @@ async function connect(kind: 'spp' | 'ble'): Promise<void> {
 function setConnecting(on: boolean): void {
   $<HTMLButtonElement>('btn-spp').disabled = on || !webSerialAvailable();
   $<HTMLButtonElement>('btn-ble').disabled = on || !webBluetoothAvailable();
+  $<HTMLButtonElement>('btn-bridge').disabled = on;
 }
 
 // ----------------------------------------------------------------- render ---
@@ -396,10 +439,12 @@ function render(): void {
   $('btn-disconnect').classList.toggle('hidden', !device);
   $('btn-spp').classList.toggle('hidden', !!device);
   $('btn-ble').classList.toggle('hidden', !!device);
+  $('btn-bridge').classList.toggle('hidden', !SHOW_BRIDGE || !!device);
   $('dot').classList.toggle('on', connected);
   $<HTMLButtonElement>('btn-refresh-apps').disabled = !connected;
   $<HTMLButtonElement>('btn-refresh-faces').disabled = !connected;
-  $<HTMLButtonElement>('btn-install').disabled = !connected || !pending || pending.kind === 'unsupported';
+  $<HTMLButtonElement>('btn-install').disabled = !connected || !pending || pending.kind === 'unsupported' || device!.isBusy || catalogBusy;
+  $<HTMLButtonElement>('btn-face-install').disabled = !connected || device!.isBusy || catalogBusy;
 
   if (device) {
     const i = device.info;
@@ -408,6 +453,8 @@ function render(): void {
     $('d-fw').textContent = i.firmware ?? '—';
     $('d-batt').textContent = i.battery !== undefined ? `${i.battery}%` : '—';
     $('d-link').textContent = device.link.name;
+    const st = i.storage;
+    $('d-storage').textContent = st && st.total ? `${fmtBytes(st.total - st.used)} / ${fmtBytes(st.total)}` : '—';
   }
   renderApps(connected ? device!.apps : null);
   renderFaces(connected ? device!.faces : null);
@@ -452,7 +499,12 @@ function renderApps(apps: InstalledApp[] | null): void {
   if (apps.length === 0) return void ul.appendChild(emptyItem(t('noApps')));
   for (const a of apps) {
     const li = document.createElement('li');
-    li.append(nameCell(a.name, a.id), button(t('del'), async () => {
+    li.append(nameCell(a.name, a.id), button(t('open'), async () => {
+      await device!.launchApp(a);
+      toast(t('opened', { name: a.name }));
+      // A second launch while the app is open crashed a Mi Band 10, so keep the button off for a while.
+      await new Promise((r) => setTimeout(r, 30_000));
+    }), button(t('del'), async () => {
       if (!confirm(t('confirmDeleteApp', { name: a.name }))) return;
       await device!.deleteApp(a);
       toast(t('deleted', { name: a.name }));
@@ -490,7 +542,11 @@ function renderFaces(faces: InstalledFace[] | null): void {
 // ------------------------------------------------------------------ files ---
 
 async function pickFile(file: File): Promise<void> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  showFile(new Uint8Array(await file.arrayBuffer()), file.name);
+}
+
+/** Makes `bytes` the pending file of the install card. */
+function showFile(bytes: Uint8Array, fileName: string): void {
   pending = parseFile(bytes);
   if (iconUrl) URL.revokeObjectURL(iconUrl);
   iconUrl = null;
@@ -516,7 +572,7 @@ async function pickFile(file: File): Promise<void> {
     $('f-name').textContent = pending.name;
     $('f-sub').textContent = `watchface #${pending.id} · ${fmtSize(bytes.length)}`;
   } else {
-    $('f-name').textContent = file.name;
+    $('f-name').textContent = fileName;
     $('f-sub').textContent = `✗ ${pending.reason}`;
   }
   render();
@@ -546,6 +602,48 @@ async function install(): Promise<void> {
     render();
   }
 }
+
+// -------------------------------------------------------------- watchface ---
+
+/** Draws the Band 8 face from the form, shows it and returns the .bin. */
+function makeFace(): { bytes: Uint8Array; name: string } {
+  const face = renderBand8Face({ text: $<HTMLInputElement>('face-text').value, accent: $<HTMLInputElement>('face-accent').value });
+  const bytes = buildBand8Face(face);
+  $<HTMLCanvasElement>('face-canvas').getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(face.screen.data), face.screen.width, face.screen.height), 0, 0);
+  $('face-size').textContent = t('faceSize', { id: face.id, size: fmtSize(bytes.length) });
+  return { bytes, name: face.name };
+}
+
+let faceTimer: ReturnType<typeof setTimeout> | undefined;
+const redrawFace = () => {
+  clearTimeout(faceTimer);
+  faceTimer = setTimeout(() => {
+    try {
+      makeFace();
+    } catch (e) {
+      fail(e);
+    }
+  }, 150);
+};
+$('card-face').classList.toggle('hidden', !SHOW_FACE_MAKER);
+$('face-text').oninput = redrawFace;
+$('face-accent').oninput = redrawFace;
+redrawFace();
+
+$('btn-face-download').onclick = () => {
+  const { bytes, name } = makeFace();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/octet-stream' }));
+  a.download = `${name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'watchface'}.bin`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('btn-face-install').onclick = () => {
+  const { bytes, name } = makeFace();
+  showFile(bytes, `${name}.bin`);
+  $('card-install').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  void install();
+};
 
 // ----------------------------------------------------------------- wiring ---
 
@@ -582,10 +680,47 @@ $('btn-log-copy').onclick = async () => {
 
 $('btn-spp').onclick = () => void connect('spp');
 $('btn-ble').onclick = () => void connect('ble');
+$('btn-bridge').onclick = () => void connect('bridge');
 $('btn-disconnect').onclick = () => void device?.disconnect();
 $('btn-install').onclick = () => void install();
 $('btn-refresh-apps').onclick = () => void device?.refreshApps().catch(fail);
 $('btn-refresh-faces').onclick = () => void device?.refreshFaces().catch(fail);
+$('btn-storage').onclick = () => void device?.refreshStorage().catch(fail);
+$('btn-del-apps').onclick = () => cleanup('btn-del-apps', async (d, status) => {
+  if (!d.apps.length) return toast(t('noApps'));
+  if (!confirm(t('confirmDelAllApps', { n: d.apps.length }))) return;
+  await d.deleteAllApps((done, total) => status(`${done}/${total}`));
+});
+$('btn-del-faces').onclick = () => cleanup('btn-del-faces', async (d, status) => {
+  const n = d.faces.filter((f) => f.canDelete && !f.active).length;
+  if (!n) return toast(t('noDeletableFaces'));
+  if (!confirm(t('confirmDelAllFaces', { n }))) return;
+  await d.deleteAllFaces((done, total) => status(`${done}/${total}`));
+});
+$('btn-clear-health').onclick = () => cleanup('btn-clear-health', async (d) => {
+  if (!confirm(t('confirmClearHealth'))) return;
+  const n = await d.clearHealthFiles();
+  toast(t('healthCleared', { n }));
+  await d.refreshStorage().catch(() => {});
+});
+
+/** Runs one storage clean-up action with its button disabled and a short status next to the buttons. */
+function cleanup(id: string, run: (d: XiaomiDevice, status: (s: string) => void) => Promise<void>): void {
+  if (!device?.connected) return;
+  const b = $<HTMLButtonElement>(id);
+  const status = (s: string) => ($('cleanup-status').textContent = s);
+  b.disabled = true;
+  run(device, status).catch(fail).finally(() => {
+    b.disabled = false;
+    status('');
+  });
+}
+
+function fmtBytes(n: number): string {
+  if (n >= 1 << 30) return `${(n / (1 << 30)).toFixed(1)} GB`;
+  if (n >= 1 << 20) return `${(n / (1 << 20)).toFixed(1)} MB`;
+  return `${Math.round(n / 1024)} KB`;
+}
 $('remember').onchange = (e) => {
   if (!(e.target as HTMLInputElement).checked) storage.set(null);
 };
@@ -664,7 +799,7 @@ function renderCatalog(): void {
     details.onclick = () => openAppDialog(app);
     details.append(icon, name);
     const installed = installedIds.has(app.id);
-    const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy);
+    const btn = button(installed ? t('reinstall') : t('add'), () => installFromCatalog(app), !connected || catalogBusy || !!device?.isBusy);
     if (!installed) btn.classList.add('primary');
     li.append(details);
     const editor = app.customize && EDITORS[app.customize];
@@ -735,7 +870,7 @@ function renderAppDialogAction(): void {
   const btn = button(installed ? t('reinstall') : t('add'), async () => {
     appDialog.close();
     await installFromCatalog(app);
-  }, !connected || catalogBusy);
+  }, !connected || catalogBusy || !!device?.isBusy);
   if (!installed) btn.classList.add('primary');
   $('app-dialog-action').replaceChildren(btn);
   $('app-dialog-hint').classList.toggle('hidden', connected);
@@ -922,6 +1057,7 @@ function renderKeyRows(ul: HTMLElement, rows: KeyRow[]): void {
 }
 
 let qrAbort: AbortController | null = null;
+const QR_MAX_ROUNDS = 12;
 let qrLoginUrl = '';
 
 // The link lives inside translated markup, so it is re-pointed after every language switch.
@@ -954,20 +1090,24 @@ async function startQr(): Promise<void> {
   const status = $('qr-status');
   status.textContent = t('qrCreating');
   try {
-    const qr = await api<{ qr: string; loginUrl: string; lp: string; timeout: number }>('/api/xiaomi/qr', {}, ctl.signal);
-    $<HTMLImageElement>('qr-img').src = qr.qr;
-    qrLoginUrl = qr.loginUrl;
-    setQrLink();
-    status.textContent = t('qrWaiting');
-    const deadline = Date.now() + qr.timeout * 1000;
-    while (Date.now() < deadline) {
-      const server = $<HTMLSelectElement>('qr-server').value;
-      const res = await api<PollResult>('/api/xiaomi/poll', { lp: qr.lp, server }, ctl.signal);
-      if (res.status === 'ok') {
-        stopQr();
-        renderCloudDevices(res);
-        return;
+    // An expired QR is replaced by a fresh one; give up after about an hour of nobody scanning.
+    for (let round = 0; round < QR_MAX_ROUNDS; round++) {
+      const qr = await api<{ qr: string; loginUrl: string; lp: string; timeout: number }>('/api/xiaomi/qr', {}, ctl.signal);
+      $<HTMLImageElement>('qr-img').src = qr.qr;
+      qrLoginUrl = qr.loginUrl;
+      setQrLink();
+      status.textContent = t(round ? 'qrRenewed' : 'qrWaiting');
+      const deadline = Date.now() + qr.timeout * 1000;
+      while (Date.now() < deadline) {
+        const server = $<HTMLSelectElement>('qr-server').value;
+        const res = await api<PollResult>('/api/xiaomi/poll', { lp: qr.lp, server }, ctl.signal);
+        if (res.status === 'ok') {
+          stopQr();
+          renderCloudDevices(res);
+          return;
+        }
       }
+      log('QR code expired, creating a new one');
     }
     status.textContent = t('qrExpired');
     throw new Error(t('qrExpiredErr'));

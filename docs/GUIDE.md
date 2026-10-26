@@ -41,8 +41,8 @@ The page first reads the band list of **Mi Fitness** (Mi Band 7 Pro, 8, 9, 10, X
 **iPhone / iPad (easiest, no Android needed)**: the key is in one small file of the Mi Fitness app.
 
 1. In **Files**: **On My iPad** (or iPhone) → **Mi Fitness** → **MHWCahe** → the number folder → **VirtualDevice_registerList**.
-2. AirDrop the file **`manifest.sqlite-wal`** to the computer.
-3. On the website, open *"Other ways to get the auth key"* and pick it. The page reads it in the browser (nothing is uploaded) and shows **"Use this key"**.
+2. AirDrop both **`manifest.sqlite`** and **`manifest.sqlite-wal`** to the computer (sometimes only one exists; that's fine).
+3. On the website, open *"Other ways to get the auth key"* and pick both files together. The key can be in either file, depending on when Mi Fitness last saved its database. The page reads it in the browser (nothing is uploaded) and shows **"Use this key"**.
 4. Delete the file afterwards.
 
 The whole Mi Fitness folder compressed as a .zip works too, but it also holds your health data. Confirmed on a Mi Band 10 synced with Mi Fitness on an iPad (account region Singapore).
@@ -65,11 +65,18 @@ More background: the [Gadgetbridge guide](https://gadgetbridge.org/basics/pairin
 
 ## Step 2: Connect the band
 
-1. **Turn off Bluetooth on your phone / iPad** (in Settings, not just Control Center): the band talks to one device at a time.
-2. Press **Mi Band 8 / 9 / 10 / 9 Active** (Bluetooth Low Energy) and pick the band in the dialog → **Pair**. On a Mac, a Mi Band 10 only shows up here.
-3. **Look at the band:** on the first connection it asks to accept a pairing request (on a Mi Band 10 the text may show as `pair_request.setupwizard / accept_ble_request.system`). Press the **lower (blue) button**. Until you do, the page waits and then says the authentication timed out.
-
-The other button, **Bluetooth Classic (SPP)**, is only for a band that shows up as a serial port after pairing it in the computer's Bluetooth settings.
+1. **Turn off Bluetooth on your phone / iPad** (in Settings, not just Control Center) and quit Mi Fitness: the band talks to one device at a time.
+2. **First time on this computer only:**
+   - If the band is listed in the computer's Bluetooth settings, remove it (**Forget This Device**). An old pairing record makes the band refuse the connection.
+   - On the band, open **Settings → System → Connect to new phone** and leave that waiting screen open. Without it, a band already paired with a phone refuses a new computer (the log shows `NO_BOUND` or the link drops before authentication).
+3. Pick a connection:
+   - **Mac + Mi Band 10: Mac helper (tested).** Chrome on macOS cannot open the band's Bluetooth Classic port by itself, so a small helper opens it. It is a developer option, not shown on miband.trinh.uk: in a clone of this repo run `bash tools/bridge/run.sh` (needs Node and the Xcode command line tools) and keep it running, start the page locally with `npm run dev`, open http://localhost:5173 and press **Mac helper (Mi Band 10)**.
+   - **Mi Band 8 / 9 / 10 / 11 / 9 Active** (Bluetooth Low Energy): pick the band in the dialog → **Pair**. Not yet confirmed to install apps on a Mi Band 9 or 10.
+     - Mi Band 9/10: enter the **Device ID** as well as the auth key; without it the band accepts the handshake and then ignores every command.
+     - Mi Band 8: watchfaces only; it does not run third-party apps (.rpk). A watchface goes over at about 2 KB/s (a 1 MB face takes about 10 minutes).
+   - **Bluetooth Classic (SPP)**: for a band that shows up as a serial port after pairing it in the computer's Bluetooth settings (mostly Windows/Linux).
+4. **Look at the band:** it asks to accept a pairing request (on a Mi Band 10 the text may show as `pair_request.setupwizard / accept_ble_request.system`). Press the **lower (blue) button**. The first attempt often times out even after accepting; press Connect again.
+5. **After the band restarts** (for example after an app crashed it) it may have dropped the computer's pairing: the connection times out or fails. Repeat step 2. If the band was bound to Mi Fitness again in the meantime, get a new key (Step 1).
 
 You're done when you see the green dot **"Connected"** together with the model name and battery %.
 
@@ -105,7 +112,11 @@ Press the **"Install as app"** button in the top corner, or the install icon in 
 | The band doesn't appear in the dialog | Turn off Bluetooth on your phone. Mi Band 9/10: check that it's paired in your computer's Bluetooth settings. Linux: enable `chrome://flags/#enable-experimental-web-platform-features` |
 | "Wrong auth key" | Get the key again in Step 1, choosing your band's row |
 | "Authentication timed out" | The phone is still holding the connection to the band → turn Bluetooth on the phone fully off and try again |
+| `NO_BOUND` in the log, or the link drops before authentication | First time on this computer: do Step 2.2 (forget the band in Bluetooth settings, then *Connect to new phone* on the band) |
+| "No reply from band" right after connecting, no battery or app list | The band is still on the *Connect to new phone* screen, or Mi Fitness is still connected → return the band to its watch face, turn off the phone's Bluetooth, connect again |
 | "Band rejected the app" | The app isn't compatible with this band model |
+| "contains plain JavaScript" | Mi Band 10 only runs compiled quick apps: rebuild with `aiot release --enable-jsc` (needs `@aiot-toolkit/jsc`) |
+| The band restarts after opening an app and the app is gone | The firmware removes an app that crashed it. Open an app only once (don't press **Open** again while it runs); tell us which app it was |
 | The band behaves oddly after installing | Remove the app you just installed from the "Apps on band" list, or restart the band |
 
 Still stuck? Open the **"Connection log"** section at the bottom of the page, take a screenshot and [open an issue on GitHub](https://github.com/ptrinh/miband-hack/issues).

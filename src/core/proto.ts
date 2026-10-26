@@ -63,6 +63,11 @@ message CompanionDevice {
 message System {
   optional Power power = 2;
   optional DeviceInfo deviceInfo = 3;
+  optional StorageInfo storageInfo = 44;   // storage_info, answer to GET_STORAGE_INFO (62)
+}
+message StorageInfo {
+  optional uint64 used = 1;             // bytes
+  optional uint64 total = 2;
 }
 message Power {
   optional Battery battery = 1;
@@ -113,7 +118,13 @@ message Rpk {
   optional RpkList rpkList = 1;
   optional RpkInfo rpkInfo = 2;
   optional RpkInstallStart rpkInstallStart = 3;
+  optional RpkInstallResult rpkInstallResult = 4;
   optional RpkInfoList rpkDel = 5;
+  optional RpkLaunch rpkLaunch = 6;   // launch_info in AstroBox's wear_thirdparty_app.proto
+}
+message RpkLaunch {
+  optional RpkInfoList app = 1;       // basic_info: package_name = 1, fingerprint = 2
+  optional string uri = 2;
 }
 message RpkList {
   repeated RpkInfoList rpkInfo = 1;
@@ -129,6 +140,10 @@ message RpkInfoList {
   optional uint32 unknown3 = 3;
   optional uint32 unknown4 = 4;
   optional string name = 5;
+}
+// install_result in AstroBox's wear_thirdparty_app.proto: 0 success, 1 failed, 2 verify (signature) failed.
+message RpkInstallResult {
+  optional uint32 code = 1;
 }
 message RpkInstallStart {
   optional uint32 cmd = 1;
@@ -174,6 +189,7 @@ export interface Command {
   system?: {
     power?: { battery?: { level?: number; state?: number } };
     deviceInfo?: { serialNumber?: string; firmware?: string; model?: string };
+    storageInfo?: { used?: number | { toString(): string }; total?: number | { toString(): string } };
   };
   watchface?: {
     watchfaceList?: { watchface?: WatchfaceInfo[] };
@@ -190,7 +206,9 @@ export interface Command {
     rpkList?: { rpkInfo?: RpkInfoList[] };
     rpkInfo?: { id?: string; unknown2?: number; size?: number };
     rpkInstallStart?: { cmd?: number };
+    rpkInstallResult?: { code?: number };
     rpkDel?: RpkInfoList;
+    rpkLaunch?: { app?: RpkInfoList; uri?: string };
   };
   dataUpload?: {
     dataUploadRequest?: { type?: number; md5sum?: Uint8Array; size?: number };

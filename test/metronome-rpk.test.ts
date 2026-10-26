@@ -52,7 +52,7 @@ describe('Metronome demo app', () => {
     const entries = readZip(rpk).entries;
     const names = entries.map((e) => e.name);
     expect(names).toContain(CERT_PATH);
-    expect(names).toEqual(expect.arrayContaining(['pages/index/index.js', 'common/logo.png']));
+    expect(names).toEqual(expect.arrayContaining(['pages/index/index.jsc', 'common/logo.png']));
     const manifest = JSON.parse(td.decode(entries.find((e) => e.name === 'manifest.json')!.data));
     expect(manifest.config.designWidth).toBe(192);
     expect(manifest.versionCode).toBe(1);

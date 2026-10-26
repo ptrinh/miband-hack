@@ -68,8 +68,20 @@ export async function repackRpk(
   // 1. META-INF/CERT: zip { hash.json } with the original CERT's zip comment, then signed.
   const oldCert = entries.find((e) => e.name === CERT_PATH);
   const certComment = oldCert ? readZip(oldCert.data).comment : src.comment;
+  // A bytecode build (--enable-jsc) lists each .jsc under its .js name with the digest of the JS source,
+  // which we cannot recompute: carry those entries over from the original hash.json.
+  const oldDigests = oldCert ? certDigests(oldCert.data) : {};
+  // Keep the original key order (the toolkit's differs from the zip order for compiled scripts).
   const digests: Record<string, string> = {};
-  for (const e of entries) if (isFile(e) && e.name !== CERT_PATH) digests[e.name] = toHex(sha256(e.data));
+  const present = new Set(entries.flatMap((e) => [e.name, jsSourceName(e.name) ?? e.name]));
+  for (const k of Object.keys(oldDigests)) if (present.has(k)) digests[k] = '';
+  for (const e of entries) {
+    if (!isFile(e) || e.name === CERT_PATH) continue;
+    const js = jsSourceName(e.name);
+    if (js && oldDigests[js] && !(e.name in replace)) digests[js] = oldDigests[js];
+    else digests[e.name] = toHex(sha256(e.data));
+  }
+  for (const k of Object.keys(digests)) if (!digests[k]) delete digests[k];
   const hashJson = utf8.encode(JSON.stringify({ algorithm: 'SHA-256', digests }));
   const certZip = writeZip([{ name: HASH_JSON, data: hashJson }], certComment, date);
   const signedCert = await signZip(certZip, [fileDigest(HASH_JSON, certZip)], signer);
@@ -85,6 +97,17 @@ export async function repackRpk(
 
   const unsigned = writeZip(out, src.comment, date);
   return signZip(unsigned, files, signer);
+}
+
+/** `app.jsc` → `app.js`, the name the toolkit's hash.json uses for compiled scripts. */
+function jsSourceName(name: string): string | null {
+  return name.endsWith('.jsc') ? name.slice(0, -1) : null;
+}
+
+function certDigests(cert: Uint8Array): Record<string, string> {
+  const hj = readZip(cert).entries.find((e) => e.name === HASH_JSON);
+  if (!hj) return {};
+  return (JSON.parse(utf8d.decode(hj.data)) as { digests?: Record<string, string> }).digests ?? {};
 }
 
 // ---------- verification (re-implementation of what the toolkit writes) ----------
@@ -145,6 +168,8 @@ export async function verifyRpk(rpk: Uint8Array): Promise<RpkVerification> {
             const want = files.filter((e) => e.name !== CERT_PATH);
             if (Object.keys(parsed.digests).length !== want.length) errors.push('CERT: hash.json file count mismatch');
             for (const e of want) {
+              const js = jsSourceName(e.name);
+              if (js && parsed.digests[js] && !(e.name in parsed.digests)) continue; // source digest, not checkable
               if (parsed.digests[e.name] !== toHex(sha256(e.data))) errors.push(`CERT: hash.json digest mismatch for ${e.name}`);
             }
           }

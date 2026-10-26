@@ -23,8 +23,9 @@ MiBand Hack fills that gap: open a web page and install.
 | Device | Connection | Browser API | Status |
 |---|---|---|---|
 | Mi Band 9, 10, 9 Pro, 10 Pro | Bluetooth Classic (SPP) | Web Serial (Chrome/Edge ≥ 117, desktop) | Implemented, not yet tested on a real device |
+| Mi Band 9 (on a Mac) | BLE V2 (`fe95` / `005e`, `005f`) | Web Bluetooth | Connect, auth (with the Device ID), device info, app and watchface lists tested (fw 2.3.98); app install not yet confirmed |
 | Mi Band 9 Active | BLE V2 (`fe95` / `005e`, `005f`) | Web Bluetooth | Implemented, not yet tested on a real device |
-| Mi Band 8 | BLE V1 (`fe95` / `0051`–`0055`) | Web Bluetooth | Implemented, not yet tested on a real device |
+| Mi Band 8 | BLE V1 (`fe95` / `0051`–`0055`) | Web Bluetooth | Connect, auth, device info, watchface list and watchface install tested (fw 2.3.14, ~2 KB/s); takes no apps (.rpk) |
 
 - Formats: `.rpk` (Vela quick app), watchface v2 (header `5A A5`). Watchface v3 and firmware are **deliberately not supported** (firmware can easily brick the band).
 - Browser: desktop Chrome or Edge. Safari/Firefox have no Web Serial/Web Bluetooth.

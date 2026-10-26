@@ -27,6 +27,7 @@ import { t } from './i18n';
 const SYSTEM = 2;
 const SYS_BATTERY = 1;
 const SYS_DEVICE_INFO = 2;
+const SYS_STORAGE = 62;
 const WATCHFACE = 4;
 const WF_LIST = 0;
 const WF_SET = 1;
@@ -37,6 +38,7 @@ const RPK_LIST = 0;
 const RPK_INSTALL = 1;
 const RPK_INSTALLED = 2;
 const RPK_DELETE = 3;
+const RPK_LAUNCH = 4;
 const HEALTH = 8;
 const HEALTH_LIST_TODAY = 1;
 const HEALTH_LIST_PAST = 2;
@@ -82,6 +84,8 @@ export interface DeviceInfo {
   firmware?: string;
   serial?: string;
   battery?: number;
+  /** Bytes, from GET_STORAGE_INFO. */
+  storage?: { used: number; total: number };
 }
 export interface InstalledApp { id: string; name: string; sha?: Uint8Array }
 export interface InstalledFace { id: string; name: string; active: boolean; canDelete: boolean }
@@ -238,7 +242,21 @@ export class XiaomiDevice {
     }
     this.connected = true;
     this.onLog('✓ authenticated');
-    await Promise.allSettled([this.refreshInfo(), this.refreshApps(), this.refreshFaces()]);
+    // A Mi Band 8 leaves every app (.rpk) command unanswered; asking for its app list only costs a timeout.
+    const apps = this.isBand8 ? Promise.resolve() : this.refreshApps();
+    await Promise.allSettled([this.refreshInfo(), apps, this.refreshFaces()]);
+    // not awaited: older firmware may never answer GET_STORAGE_INFO
+    void this.refreshStorage().catch(() => {});
+  }
+
+  /** Mi Band 8, not the Pro: firmware 2.3.14 answered no app (.rpk) command, list or install (2026-10-26). */
+  get isBand8(): boolean {
+    return /Band 8(?! Pro)/i.test(this.link.deviceName ?? '');
+  }
+
+  /** An install or another long transfer is running. */
+  get isBusy(): boolean {
+    return this.busy;
   }
 
   async disconnect(): Promise<void> {
@@ -285,14 +303,16 @@ export class XiaomiDevice {
       this.handleAuth(cmd, bytes);
       return;
     }
-    this.handlePassive(cmd);
+    let handled = this.handlePassive(cmd);
     for (const w of [...this.waiters]) {
       if (w.match(cmd)) {
         clearTimeout(w.timer);
         this.waiters = this.waiters.filter((x) => x !== w);
         w.resolve(cmd);
+        handled = true;
       }
     }
+    if (!handled) this.onLog(`← unhandled command type ${cmd.type} subtype ${cmd.subtype} (${bytes.length} B: ${hex(bytes, 32)})`);
   }
 
   private handleAuth(cmd: Command, raw: Uint8Array): void {
@@ -351,17 +371,27 @@ export class XiaomiDevice {
     }
   }
 
-  private handlePassive(cmd: Command): void {
+  /** Returns false when the command is none of the ones the band sends on its own. */
+  private handlePassive(cmd: Command): boolean {
     if (cmd.type === SYSTEM && cmd.subtype === SYS_DEVICE_INFO && cmd.system?.deviceInfo) {
       const d = cmd.system.deviceInfo;
       Object.assign(this.info, { model: d.model, firmware: d.firmware, serial: d.serialNumber });
       this.onChange();
+      return true;
+    } else if (cmd.type === SYSTEM && cmd.subtype === SYS_STORAGE && cmd.system?.storageInfo) {
+      // uint64: a plain number or a Long, depending on whether protobufjs found the long package
+      const n = (v: unknown) => Number(typeof v === 'object' && v ? String(v) : v ?? 0);
+      this.info.storage = { used: n(cmd.system.storageInfo.used), total: n(cmd.system.storageInfo.total) };
+      this.onChange();
+      return true;
     } else if (cmd.type === SYSTEM && cmd.subtype === SYS_BATTERY && cmd.system?.power?.battery) {
       this.info.battery = cmd.system.power.battery.level;
       this.onChange();
+      return true;
     } else if (cmd.type === RPK && cmd.subtype === RPK_LIST) {
       this.apps = (cmd.rpk?.rpkList?.rpkInfo ?? []).map((r) => ({ id: r.id ?? '', name: r.name || r.id || '?', sha: r.sha }));
       this.onChange();
+      return true;
     } else if (cmd.type === WATCHFACE && cmd.subtype === WF_LIST) {
       this.faces = (cmd.watchface?.watchfaceList?.watchface ?? []).map((w) => ({
         id: w.id ?? '',
@@ -370,11 +400,15 @@ export class XiaomiDevice {
         canDelete: !!w.canDelete,
       }));
       this.onChange();
+      return true;
     } else if (cmd.type === RPK && (cmd.subtype === RPK_INSTALLED || cmd.subtype === RPK_DELETE)) {
       void this.refreshApps();
+      return true;
     } else if (cmd.type === WATCHFACE && cmd.subtype === WF_DELETE) {
       void this.refreshFaces();
+      return true;
     }
+    return false;
   }
 
   private handleActivity(chunk: Uint8Array): void {
@@ -396,6 +430,10 @@ export class XiaomiDevice {
     ]);
   }
 
+  refreshStorage(): Promise<Command> {
+    return this.request({ type: SYSTEM, subtype: SYS_STORAGE }, (c) => c.type === SYSTEM && c.subtype === SYS_STORAGE, t('whatStorage'));
+  }
+
   refreshApps(): Promise<Command> {
     return this.request({ type: RPK, subtype: RPK_LIST }, (c) => c.type === RPK && c.subtype === RPK_LIST, t('whatApps'));
   }
@@ -406,12 +444,65 @@ export class XiaomiDevice {
 
   // ------------------------------------------------------------- actions ---
 
+  /** Opens an installed app on the band (no reply is sent). */
+  async launchApp(app: InstalledApp, uri = ''): Promise<void> {
+    await this.send({ type: RPK, subtype: RPK_LAUNCH, rpk: { rpkLaunch: { app: { id: app.id, sha: app.sha }, uri } } });
+  }
+
   async deleteApp(app: InstalledApp): Promise<void> {
     this.onLog(`→ deleting app ${app.id}`);
     await this.send({ type: RPK, subtype: RPK_DELETE, rpk: { rpkDel: { id: app.id, sha: app.sha } } });
     // the band usually sends no reply to a delete
     await new Promise((r) => setTimeout(r, 800));
     await this.refreshApps();
+  }
+
+  /** Deletes every quick app, then reports the free space again. */
+  async deleteAllApps(onProgress: (done: number, total: number) => void): Promise<void> {
+    const apps = [...this.apps];
+    for (const [i, app] of apps.entries()) {
+      this.onLog(`→ deleting app ${app.id}`);
+      await this.send({ type: RPK, subtype: RPK_DELETE, rpk: { rpkDel: { id: app.id, sha: app.sha } } });
+      await new Promise((r) => setTimeout(r, 800));
+      onProgress(i + 1, apps.length);
+    }
+    await this.refreshApps();
+    await this.refreshStorage().catch(() => {});
+  }
+
+  /** Deletes every watchface the band lets us delete, except the active one. */
+  async deleteAllFaces(onProgress: (done: number, total: number) => void): Promise<void> {
+    const faces = this.faces.filter((f) => f.canDelete && !f.active);
+    for (const [i, face] of faces.entries()) {
+      this.onLog(`→ deleting watchface ${face.id}`);
+      await this.send({ type: WATCHFACE, subtype: WF_DELETE, watchface: { watchfaceId: face.id } });
+      await new Promise((r) => setTimeout(r, 800));
+      onProgress(i + 1, faces.length);
+    }
+    await this.refreshFaces();
+    await this.refreshStorage().catch(() => {});
+  }
+
+  /**
+   * Marks every recorded health file as synced without downloading it, so the band can drop it.
+   * Data the official app has not synced yet is lost.
+   */
+  async clearHealthFiles(): Promise<number> {
+    if (this.busy) throw new Error(t('errBusy'));
+    this.busy = true;
+    try {
+      const lists = await Promise.allSettled([this.listHealthFiles(HEALTH_LIST_TODAY), this.listHealthFiles(HEALTH_LIST_PAST)]);
+      if (lists.every((l) => l.status === 'rejected')) throw (lists[0] as PromiseRejectedResult).reason;
+      const seen = new Map<string, FileId>();
+      for (const l of lists) if (l.status === 'fulfilled') for (const id of l.value) seen.set(fileIdKey(id), id);
+      this.onLog(`health: acknowledging ${seen.size} files`);
+      for (const id of seen.values()) {
+        await this.send({ type: HEALTH, subtype: HEALTH_ACK_FILE, health: { activitySyncAckFileIds: encodeFileId(id) } });
+      }
+      return seen.size;
+    } finally {
+      this.busy = false;
+    }
   }
 
   async setWatchface(id: string): Promise<void> {
@@ -443,7 +534,10 @@ export class XiaomiDevice {
       { type: RPK, subtype: RPK_INSTALL, rpk: { rpkInfo: { id: file.id, unknown2: file.versionCode, size: file.bytes.length } } },
       (c) => c.type === RPK && c.subtype === RPK_INSTALL,
       t('whatAppInstall'),
-    );
+    ).catch((e: Error) => {
+      if (this.isBand8) throw new Error(`${e.message}. ${t('errBand8Apps')}`);
+      throw e;
+    });
     const status = reply.rpk?.rpkInstallStart?.cmd ?? 0;
     if (status !== 0) throw new Error(t('errAppRejected', { status }));
 
@@ -451,11 +545,15 @@ export class XiaomiDevice {
     installed.catch(() => {}); // awaited below
     await this.upload(UPLOAD_TYPE_RPK, file.bytes, (p) => onProgress(p, t('stSending')));
     onProgress(100, t('stWaitInstall'));
+    let result: Command | undefined;
     try {
-      await installed;
+      result = await installed;
     } catch {
       this.onLog('⚠ band sent no install confirmation — check the app list on the band');
     }
+    const code = result?.rpk?.rpkInstallResult?.code ?? 0;
+    if (code === 2) throw new Error(t('errAppVerify'));
+    if (code !== 0) throw new Error(t('errAppRejected', { status: code }));
     await this.refreshApps();
   }
 
@@ -570,7 +668,9 @@ export class XiaomiDevice {
 
     const body = concat(new Uint8Array([0, type & 0xff]), md5sum, u32le(bytes.length), bytes.subarray(resume));
     const payload = concat(body, u32le(crc32(body)));
-    const partSize = chunkSize - 4;
+    // chunkSize covers the whole part: the link's own header (channel + opcode on SPP, as in AstroBox; none on
+    // BLE V1, as in Gadgetbridge) and total + part numbers (4).
+    const partSize = chunkSize - 4 - (this.link.uploadPartOverhead ?? 2);
     const total = Math.ceil(payload.length / partSize);
     for (let i = 0; i < total; i++) {
       if (!this.connected) throw new Error(t('errUploadLost'));

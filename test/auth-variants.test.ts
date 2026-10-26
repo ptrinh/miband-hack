@@ -25,16 +25,16 @@ function band(bound?: { deviceId?: string; sessionDeviceType?: number }): FakeBa
 }
 
 describe('auth step 1 variants', () => {
-  it('plans the full Device ID first, then nonce only, the UUID part, the dynamic code, then the iOS session round', () => {
+  it('plans nonce only first, then the full Device ID, the UUID part, the dynamic code, then the iOS session round', () => {
     const plan = planAuthAttempts(PHONE_ID, 'auto', true);
     expect(plan.map((a) => a.id)).toEqual([
-      'id', 'nonce', 'uuid', 'uuid-upper', 'code',
-      'l1-ios+id', 'l1-ios+nonce', 'l1-ios+uuid', 'l1-ios+uuid-upper',
+      'nonce', 'id', 'uuid', 'uuid-upper', 'code',
+      'l1-ios+nonce', 'l1-ios+id', 'l1-ios+uuid', 'l1-ios+uuid-upper',
     ]);
     expect(plan[2].deviceId).toBe(UUID);
     expect(plan[3].deviceId).toBe(UUID.toUpperCase());
     expect(plan[4]).toMatchObject({ deviceId: PHONE_ID, checkDynamicCode: true });
-    expect(plan[5]).toMatchObject({ deviceId: PHONE_ID, sessionDeviceType: 1 });
+    expect(plan[6]).toMatchObject({ deviceId: PHONE_ID, sessionDeviceType: 1 });
     // No Device ID: nonce only, then with the dynamic code; no session restart where it is impossible.
     expect(planAuthAttempts('', 'auto', false).map((a) => a.id)).toEqual(['nonce', 'code']);
     expect(planAuthAttempts(PHONE_ID, 'nonce')).toEqual([{ id: 'nonce' }]);
@@ -82,7 +82,7 @@ describe('handshake against a band that answers NO_BOUND', () => {
     const { dev, logs } = connectTo(b, PHONE_ID);
     await dev.connect();
     expect(dev.authVariantUsed).toBe('uuid');
-    expect(b.authAttempts.map((a) => a.deviceId)).toEqual([PHONE_ID, undefined, UUID]);
+    expect(b.authAttempts.map((a) => a.deviceId)).toEqual([undefined, PHONE_ID, UUID]);
     expect(b.bindStatusQueries).toBe(1);
     const text = logs.join('\n');
     expect(text).toContain('error_code NO_BOUND (4)');

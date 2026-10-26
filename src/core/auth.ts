@@ -87,8 +87,9 @@ export function planAuthAttempts(deviceId: string, variant: AuthVariant = 'auto'
   const add = (a: AuthAttempt) => {
     if (!firstRound.some((x) => x.deviceId === a.deviceId && !!x.checkDynamicCode === !!a.checkDynamicCode)) firstRound.push(a);
   };
-  if (id) add({ id: 'id', deviceId: id });
+  // Nonce only first: a Mi Band 10 bound on iOS answers it, and NO_BOUND to any app_device_id (2026-10-26).
   add({ id: 'nonce' });
+  if (id) add({ id: 'id', deviceId: id });
   if (uuid) {
     add({ id: 'uuid', deviceId: uuid });
     add({ id: 'uuid-upper', deviceId: uuid.toUpperCase() });

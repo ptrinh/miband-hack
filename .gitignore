@@ -5,3 +5,4 @@ dist
 .env
 .dev.vars
 __pycache__/
+tools/bridge/build

@@ -90,6 +90,11 @@ details summary { cursor: pointer; color: var(--muted); font-weight: 600; }
 details ol, details ul { padding-left: 20px; margin: 8px 0; }
 details h4 { margin: 14px 0 4px; font-size: 14px; }
 details input[type=file] { max-width: 100%; font-size: 13px; }
+input[type=file]::file-selector-button {
+  font: inherit; font-weight: 600; padding: 7px 14px; margin-right: 10px; border-radius: 8px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+}
+input[type=file]::file-selector-button:hover { filter: brightness(1.05); }
 li code { word-break: break-word; }
 a { color: var(--accent); }
 
@@ -117,6 +122,13 @@ a { color: var(--accent); }
 .file .meta { flex: 1; min-width: 0; }
 .file .meta b { display: block; }
 .file .meta span { font: 12.5px var(--mono); color: var(--muted); word-break: break-all; }
+
+.face-maker { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.face-maker canvas { width: 120px; height: auto; aspect-ratio: 192 / 490; border-radius: 22px; background: #000; flex: none; }
+.face-form { flex: 1; min-width: 200px; display: grid; gap: 12px; }
+.face-form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.face-form input[type='color'] { width: 56px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.face-form .hint { margin: 0; }
 
 .progress { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 12px; }
 .progress > div { height: 100%; width: 0; background: var(--accent); transition: width 0.2s; }
@@ -224,3 +236,4 @@ input[type='text'].deck-name { margin-top: 10px; font: 600 15px var(--sans); }
   .deck-card input[data-field='back'], .deck-card input[data-field='note'] { grid-column: 2; }
 }
 .list li.found { display: block; font-weight: 600; color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); border-radius: 12px; padding: 10px 12px; }
+.accent { color: var(--accent); }

@@ -34,8 +34,9 @@ class XiaomiCharacteristic {
     private readonly ch: BluetoothRemoteGATTCharacteristic,
     private readonly link: BleV1Link,
     private readonly maxWriteSize: number,
+    preferWithoutResponse = false,
   ) {
-    this.writer = new GattWriter(ch);
+    this.writer = new GattWriter(ch, preferWithoutResponse);
   }
 
   async start(): Promise<void> {
@@ -199,12 +200,18 @@ class XiaomiCharacteristic {
 export class BleV1Link implements Link {
   readonly name = 'BLE V1';
   readonly overBle = true;
+  /** Parts go straight to 0x0055: a Mi Band 8 answers a 2046-byte part with a bare chunk request and stalls. */
+  readonly uploadPartOverhead = 0;
   auth: AuthSession | null = null;
   onReadyForAuth = noop;
   onCommand: (b: Uint8Array) => void = noop;
   onActivity: (b: Uint8Array) => void = noop;
   onClose = noop;
   log: (m: string) => void = noop;
+
+  get deviceName(): string | undefined {
+    return this.device.name;
+  }
 
   private readonly cmdRead: XiaomiCharacteristic;
   private readonly cmdWrite: XiaomiCharacteristic;
@@ -215,7 +222,8 @@ export class BleV1Link implements Link {
     this.cmdRead = new XiaomiCharacteristic(chars.commandRead, this, writeSize);
     this.cmdWrite = new XiaomiCharacteristic(chars.commandWrite, this, writeSize);
     this.activity = new XiaomiCharacteristic(chars.activity, this, writeSize);
-    this.upload = chars.upload ? new XiaomiCharacteristic(chars.upload, this, writeSize) : null;
+    // Writes with response cost a round trip each: a Mi Band 8 upload ran 5× faster without them (2026-10-26).
+    this.upload = chars.upload ? new XiaomiCharacteristic(chars.upload, this, writeSize, true) : null;
     if (this.upload) this.upload.incrementNonce = false;
     this.cmdRead.handler = (b) => this.onCommand(b);
     this.activity.handler = (b) => this.onActivity(b);

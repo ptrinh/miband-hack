@@ -58,7 +58,7 @@ describe('Flashcards demo app', () => {
     expect(Buffer.from(parseSignature(template)!.certificateDer).equals(der)).toBe(true);
     const names = readZip(template).entries.map((e) => e.name);
     expect(names).toContain(CERT_PATH);
-    expect(names).toEqual(expect.arrayContaining(['pages/index/index.js', 'pages/study/index.js', 'pages/stats/index.js', 'common/logo.png', INDEX_PATH, deckPath(0)]));
+    expect(names).toEqual(expect.arrayContaining(['pages/index/index.jsc', 'pages/study/index.jsc', 'pages/stats/index.jsc', 'common/logo.png', INDEX_PATH, deckPath(0)]));
     const manifest = jsonOf(template, 'manifest.json');
     expect(manifest.config.designWidth).toBe(192);
     expect(manifest.features.map((f: { name: string }) => f.name).sort()).toEqual(['system.file', 'system.router', 'system.storage']);

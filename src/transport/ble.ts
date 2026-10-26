@@ -12,8 +12,8 @@ export class GattWriter {
   private chain: Promise<void> = Promise.resolve();
   private readonly withResponse: boolean;
 
-  constructor(private readonly ch: BluetoothRemoteGATTCharacteristic) {
-    this.withResponse = !ch.properties.writeWithoutResponse || ch.properties.write;
+  constructor(private readonly ch: BluetoothRemoteGATTCharacteristic, preferWithoutResponse = false) {
+    this.withResponse = !ch.properties.writeWithoutResponse || (ch.properties.write && !preferWithoutResponse);
   }
 
   write(data: Uint8Array): Promise<void> {

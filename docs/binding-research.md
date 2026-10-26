@@ -1,16 +1,37 @@
 # Can the webapp bind a Mi Band 10 directly from the browser?
 
-Research-only feasibility study. No band was contacted, no login was performed.
+Initial feasibility study, followed by native macOS experiments on 2026-10-25/26.
 Model under test: **miwear.watch.o66gl** (Mi Band 10), currently bound to Mi Fitness on iOS.
 
-## Verdict: NOT FEASIBLE (direct browser bind), and the authkey path is also blocked on this firmware
+## Verdict: no working direct-browser bind; the cause of Mac AUTH rejection remains unresolved
 
-Two independent walls, each sufficient on its own:
+1. The iPhone capture reports `BindInfoV2.verify_mode = 1 = SERVER_PSK`. The binding implementation
+   discussed below does not support this mode, and no working Xiaomi signing API integration is present.
+2. The browser received `NO_BOUND` despite using an auth key that verifies the successful iPhone
+   exchanges. This establishes a failure from this Mac, **not proof that only the iPhone identity can
+   ever authenticate**. Bond/link-security state and companion identity have not been isolated.
+3. Native CoreBluetooth also has no explicit BLE pair operation. macOS can initiate pairing when a
+   protected characteristic is accessed. Moving from a browser to a native BLE client therefore does
+   not, by itself, guarantee a bond.
 
-1. **Mi Band 10 binds with `SERVER_PSK`, which needs a Xiaomi-cloud signature that a third party cannot forge.** Confirmed directly from the iPhone HCI capture (not inferred): the band's `BindInfoV2.verify_mode = 1 = SERVER_PSK`.
-2. **The band only answers auth to its current bound companion.** The authkey the webapp already has is correct (verified cryptographically below), yet the band replies `NO_BOUND` to the Mac. The only difference from the accepted iPhone reconnect is peer identity. Becoming the companion = binding = wall #1.
+The [native experiment report](captures/mi-band-10-native-macos.md) records actual results separately
+from these hypotheses. In particular, HCI packets being readable does **not** mean the radio link was
+unencrypted: the iPhone capture has successful HCI Encryption Change events before AUTH 26/27.
 
-Web Bluetooth on macOS/Chrome additionally cannot drive the bonding this requires.
+**October 26 follow-up:** with iPhone Bluetooth confirmed off, the user accepted the band's pairing
+prompt and macOS subsequently reported `paired=true` for the public-address IOBluetooth record. A fresh
+native BLE session still returned `NO_BOUND (4)` for AUTH 26. This reproduces the browser failure after
+observed OS pairing; BLE link encryption on the Mac was not measured, so the exact gate remains unknown.
+
+**October 26, reset + official re-bind:** the band's menu offers only Reset (no "Connect new phone"), so
+it was reset on-device and re-bound with Mi Fitness. A new auth key (different hash, same MAC) was
+extracted. A native Mac BLE probe with that fresh key now fails *before* AUTH with
+`CBErrorDomain code 14` (`CBErrorPeerRemovedPairingInformation`), in two runs including iPhone-off. See
+[the re-bind capture](captures/mi-band-10-native-rebind-ble.md). This isolates a **second, earlier wall**:
+on macOS the link-layer bond cannot be re-established (CoreBluetooth has no explicit pair command, and the
+band admits new companions only during Mi Fitness's bind flow), so the SERVER_PSK wall is never even
+reached from the Mac. A valid key is necessary but not sufficient; the working desktop/mobile path is
+Gadgetbridge on Android, whose BLE stack can bond explicitly.
 
 ---
 
@@ -83,7 +104,8 @@ identical to each other — see below). Auth at reconnect uses it via
 - **In principle** possessing the user's `miothealth` session *might* let us call whatever endpoint Mi
   Fitness calls to obtain `ServerVerify`, since the signing lives at Xiaomi, not in the app. But the
   endpoint, its request shape, and whether it gates on app attestation are all unknown, and even if it
-  worked it would unbind the iPhone and still leave wall #3 (the browser can't hold the bond). This is
+  worked it could replace the existing companion binding. Browser/OS bonding behavior would still need
+  to be verified. This is
   the only theoretical opening and it is high-effort, uncertain, and risky — not a basis to proceed.
 - **Does AstroBox bind from a PC in practice?** No. Its code binds only `APP_LOCAL` (emulator / board-to-
   board). For real retail firmware it documents the SERVER_PSK wall and uses an **imported authkey** to
@@ -91,38 +113,39 @@ identical to each other — see below). Auth at reconnect uses it via
 
 ---
 
-## 3. Does the band require the bound peer's identity at auth time? — YES (this is the real blocker)
+## 3. Does AUTH require the current companion identity? — unresolved
 
-This is proven by the user's own capture, three connections side by side:
+The following observations are verified:
 
-- **Bind connection (0x40):** full 16→25 bind, then 26/27 auth, then encrypted.
-- **Reconnect connections (0x51, 0x5c):** `SESSION_CONFIG → auth 26 → 26 → auth 27 → 27 → encrypted`.
-  **No re-bind.** This is byte-for-byte the shape the webapp already sends.
-- **The webapp from the Mac:** same `SESSION_CONFIG` + auth 26 → band replies `Account{error_code=4
-  NO_BOUND}`, across all 9 variants the caller tried.
+- The iPhone bind connection (handle `0x40`) completes subtypes 16–25 and then 26/27.
+- The iPhone reconnects (`0x51`, `0x5c`) authenticate with 26/27 without repeating account binding.
+- The browser on the Mac received `Account.error_code = 4 (NO_BOUND)` for the tested variants.
+- Offline verification using the current cache's `encryptKey` validates both device and app HMACs
+  in all three successful captured exchanges. `detail.encrypt_key` and `detail.token` are the same key.
+- On the iPhone, HCI Encryption Change reports status 0 and encryption enabled before AUTH on all
+  three connections. See the [native experiment report](captures/mi-band-10-native-macos.md).
+- After on-band pairing approval and a `paired=true` OS record, a new native Mac BLE connection also
+  returned NO_BOUND for AUTH 26. The band did not return a device nonce/HMAC. Its key check was therefore
+  not reached; the source of the earlier browser failure is not limited to Web Bluetooth.
 
-Offline cross-checks I ran against the user's Mi Fitness `registerList` (values compared by equality only,
-never printed):
+The earlier conclusion that peer identity was the **only** difference was too strong. The experiments
+have not held bond state, radio-link encryption, and device state constant. `NO_BOUND` is an observed
+application error; its name alone does not identify which firmware condition caused it.
 
-- The auth 26/27 exchange captured in the bind connection **verifies correctly** with
-  `detail.encrypt_key` (and equivalently `detail.token` / `encryptKey`, which are byte-identical) using
-  the `miwear-auth` KDF — i.e. **the webapp has the correct authkey.** It does *not* verify with
-  `beaconkey` or `irq_key`.
-- Band-sent identity fields in `BindInfoV2` equal the record exactly: `serial_number == detail.sn`,
-  `model`, `did`. So the capture is unquestionably this band + this account.
+Also, plaintext protobuf visible in an HCI log does not establish an unencrypted BLE radio link. HCI
+is the host/controller boundary, and the controller can handle link encryption below that boundary.
+The captured encryption events are direct evidence of this distinction in these sessions.
 
-Conclusion: the only thing separating the accepted iPhone reconnect from the rejected Mac is **peer
-identity**. The iPhone is the band's recognized bound companion (its BLE bond / `peripheral_id`); the Mac
-is not, so `AUTH_VERIFY` returns `NO_BOUND` *before* the key matters. Corroborating: on first Mac connect
-the band showed `pair_request.setupwizard` (OS-level pairing attempt), and after the band was re-bound to
-the iPhone the Mac's GATT connect now hangs and the band once froze/rebooted — the band actively refuses
-the non-companion peer. Auth gating is at the app/binding layer (the auth frames themselves are plaintext,
-so it is not merely a BLE-encryption requirement) — the band checks that the caller is its bound companion.
+### macOS pairing limitation applies to native BLE too
 
-**Web Bluetooth cannot satisfy this.** On macOS/iOS pairing/bonding is implicit and cannot be initiated,
-controlled, or persisted from script (W3C Web Bluetooth position; macOS does implicit bonding only on an
-"insufficient authentication" error). There is no API to present the app-level bind or to become the
-band's recognized companion. So even if SERVER_PSK were solved, the browser still could not hold the bond.
+[CoreBluetooth backend documentation](https://bleak.readthedocs.io/en/stable/backends/macos.html#pairing)
+explains that macOS has no explicit BLE pairing API; accessing a characteristic requiring authentication
+can trigger OS pairing. Calling a native BLE library does not inherently force or prove a bond. The
+same OS behavior also makes the blanket claim "a browser cannot hold a bond" unsupported here.
+
+Bluetooth Classic pairing is a separate path, exposed through IOBluetooth. A successful Classic bond
+would still need verification before drawing conclusions about BLE bonding or AUTH. The experiment
+attempted this path and checked the resulting OS state; see the report.
 
 ---
 
@@ -141,34 +164,37 @@ band's recognized companion. So even if SERVER_PSK were solved, the browser stil
 
 ---
 
-## 5. Most realistic path to make the webapp work with this Mi Band 10
+## 5. Next experiment and interpretation
 
-Given both walls, a pure-browser solution for *this* band is not achievable. In rough order of effort/risk:
+The [app-installation plan](app-install-plan.md) prioritizes AstroBox's documented Connect new phone
+workflow before an Android transfer or cloud-bind research. The new
+[actual SPP/RFCOMM test](captures/mi-band-10-native-spp.md) found SPP on channel 5, opened it and negotiated
+successfully, but AUTH 26 still returned NO_BOUND. This is now verified over both native BLE and SPP;
+the band's Connect new phone state has not yet been controlled.
 
-1. **Settle wall #3 empirically with a native-BLE client before anything else (cheap, decisive).**
-   Build/borrow a native-BLE client (AstroBox desktop, or a small `btleplug`/CoreBluetooth script) on a
-   Mac that can create an OS-level bond, and try AUTH with the exported `encrypt_key`. Two outcomes:
-   - If AUTH **succeeds** once the host is OS-bonded, the band's gate is "must be on a bonded link," and
-     the webapp's only real problem is Web Bluetooth's lack of bonding control. Fallback then =
-     **Web Serial / a native helper** that owns the bond, with the ported protocol on top (the repo
-     already supports Web Serial / SPP V2 framing).
-   - If AUTH still returns `NO_BOUND`, the gate is "must be *the* companion," and only a real bind helps
-     → go to options 2/3.
-2. **Re-bind on Android, then use the authkey (lower risk than browser bind).** Bind the band fresh with
-   Mi Fitness on an Android phone, export the new `encrypt_key`, and connect from there / from a native
-   host that can be the bonded peer. Still subject to the companion gate on BLE, but Android's BLE stack
-   gives bonding control the browser lacks.
-3. **Server-PSK via the user's own cloud session (research spike, high risk/effort, uncertain).** Only if
-   1–2 fail and the user accepts unbinding the iPhone: reverse the actual Mi Fitness wear-bind HTTPS call
-   (the one that returns `ServerVerify`) from a fresh capture that includes TLS-decrypted phone traffic,
-   and drive it with the user's `miothealth` session. Even if the signature is obtainable, the bound peer
-   must still be a host that can hold the bond (not the browser). Do not attempt against the live band
-   without a throwaway test band.
+The user authorized native Mac bonding and AUTH with the existing key. The
+[native experiment report](captures/mi-band-10-native-macos.md) documents the initial failed Classic
+pair request and the later successful on-band approval/OS pairing observation. Even a fresh native BLE
+connection after approval received NO_BOUND. A helper that merely gets the Mac paired is therefore not
+a demonstrated solution for this band.
 
-**Bottom line for the webapp as it stands:** it already does the correct thing (AUTH with the real
-authkey); Mi Band 10's firmware simply won't accept AUTH from a peer that is not its bound companion, and
-the browser cannot become that companion. Recommend option 1 as the next concrete step — it is cheap and
-tells you whether a native-bond helper is enough or whether a full re-bind is unavoidable.
+Use these decision rules:
+
+- **AUTH succeeds:** a native connection with this key works in the tested state. Determine what state
+  changed and whether it persists before building a browser helper.
+- **AUTH returns NO_BOUND, with bond state unverified:** reproduces the symptom; does not distinguish
+  missing bond/link encryption from an identity-specific gate.
+- **AUTH returns NO_BOUND after verified bonding and link encryption:** stronger evidence that bonding
+  alone is insufficient, but transport, firmware state and companion metadata still need consideration.
+- **Connection/discovery/pairing fails before AUTH:** the key has not been tested on that connection.
+
+A controlled retry needs the iPhone's Bluetooth disabled in Settings, no other Mac client holding the
+band, and a responsive nearby band. Record any pairing prompt and its outcome. The current probe stops
+before account binding and has no reset/unbind command.
+
+Rebinding through Android or reverse engineering Xiaomi's server binding endpoint remain separate
+experiments. The current evidence does not establish that either is necessary or sufficient. They can
+replace companion state or lose unsynced data, so they are not an automatic continuation of this test.
 
 ---
 
@@ -180,6 +206,6 @@ tells you whether a native-bond helper is enough or whether a full re-bind is un
 - **Verified from source:** `wear_account.proto` field map; `bind.rs` APP_LOCAL crypto + the
   SERVER_PSK bail; Account module has no bind endpoint; `src/core/auth.ts` KDF; `qemu-miwear` PROGRESS.md
   SERVER_PSK-is-unforgeable finding.
-- **Inferred (not directly captured):** the exact Xiaomi cloud bind endpoint and its request shape; that
-  a native OS bond would satisfy the auth gate (option 1 is the experiment to confirm); phone-side HTTPS
+- **Inferred (not directly captured):** the exact Xiaomi cloud bind endpoint and its request shape; whether
+  a native OS bond would satisfy the auth gate; whether the gate is specific to the iPhone identity; phone-side HTTPS
   contents.

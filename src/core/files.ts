@@ -39,6 +39,16 @@ function parseRpk(bytes: Uint8Array): ParsedFile | null {
     return { kind: 'unsupported', bytes, reason: t('errManifestFields') };
   }
   const versionCode = typeof manifest.versionCode === 'number' ? manifest.versionCode : 1;
+  // Mi Band 10 firmware crashes on plain-JS quick apps; it only runs QuickJS bytecode (aiot release --enable-jsc).
+  const names: string[] = [];
+  try {
+    unzipSync(bytes, { filter: (f) => (names.push(f.name), false) });
+  } catch {
+    /* already read once above */
+  }
+  if (names.includes('app.js') && !names.includes('app.jsc')) {
+    return { kind: 'unsupported', bytes, reason: t('errRpkPlainJs') };
+  }
 
   let icon: Blob | undefined;
   if (typeof manifest.icon === 'string') {

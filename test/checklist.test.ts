@@ -158,7 +158,7 @@ describe('Checklist demo app', () => {
 
     const names = readZip(template).entries.map((e) => e.name);
     expect(names).toContain(CERT_PATH);
-    expect(names).toEqual(expect.arrayContaining(['pages/index/index.js', 'pages/list/index.js', 'common/logo.png', CHECKLIST_PATH]));
+    expect(names).toEqual(expect.arrayContaining(['pages/index/index.jsc', 'pages/list/index.jsc', 'common/logo.png', CHECKLIST_PATH]));
     const manifest = JSON.parse(td.decode(fileOf(template, 'manifest.json')));
     expect(manifest.config.designWidth).toBe(192);
     expect(manifest.features.map((f: { name: string }) => f.name).sort()).toEqual(['system.file', 'system.router', 'system.storage']);
