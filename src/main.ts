@@ -44,6 +44,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </div>
   </header>
 
+  <div class="banner err" role="alert" data-i18n-html="brickWarning"></div>
   <div id="support"></div>
 
   <div class="grid">
