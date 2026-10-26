@@ -2,7 +2,7 @@
 
 A webapp to **sideload apps (.rpk) and watchfaces (.bin) onto Mi Band 8 / 9 / 10 straight from the browser** on macOS, Windows and Linux. No software to install, no Android phone needed.
 
-> **⚠ This tool can brick your device. Use it at your own risk.** A Mi Band 8 (fw 2.3.14) stopped working after installing one watchface built by `src/watchface` (2026-10-26); it now shows “contact after-sales service”.
+> **⚠ This tool can brick your device. Use it at your own risk.**
 
 > Independent project, not affiliated with Xiaomi. The protocol is ported from [Gadgetbridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) (AGPL-3.0).
 
