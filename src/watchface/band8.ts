@@ -55,23 +55,37 @@ export function band8FaceId(seed: string): string {
   return String(300000000 + (h % 600000000));
 }
 
+/** Rows y0.. of an image, as a new image. */
+function cropRows(img: Rgba, y0: number): Rgba {
+  return { width: img.width, height: img.height - y0, data: img.data.slice(y0 * img.width * 4) };
+}
+
 export function buildBand8Face(input: Band8FaceInput): Uint8Array {
   const sources = [SOURCE.hourTens, SOURCE.hourOnes, SOURCE.minuteTens, SOURCE.minuteOnes];
   // Number lists hold 11 frames: 0–9 and the minus sign, which the time never shows (EasyFace repeats 0).
-  const lists = input.digits.map((frames) => imageListBlob([...frames, frames[0]].map(toBgra)));
+  // Every face gets its own lists, as the official compiler writes them.
+  const lists = () => input.digits.map((frames) => imageListBlob([...frames, frames[0]].map(toBgra)));
+  const widgets = () => sources.map((s, i) => numberWidgetBlob(s, i));
+  const digitElements = () => input.positions.map(([x, y], i) => elementBlob(TARGET.widget, i, x, y));
+  // The always-on face: the same digits on black and the part of the background under them (the text).
+  // Both known-good Band 8 faces carry one; a file without it stopped a band from booting (2026-10-26).
+  const textTop = Math.max(...input.positions.map(([, y], i) => y + input.digits[i][0].height));
   return packWatchface({
     id: input.id,
     name: input.name,
     preview: imageBlob(toRgb565(input.preview)),
     faces: [
       {
-        [SECTION.elements]: [
-          elementBlob(TARGET.image, 0, 0, 0),
-          ...input.positions.map(([x, y], i) => elementBlob(TARGET.widget, i, x, y)),
-        ],
+        [SECTION.elements]: [elementBlob(TARGET.image, 0, 0, 0), ...digitElements()],
         [SECTION.images]: [imageBlob(toRgb565(input.background))],
-        [SECTION.imageLists]: lists,
-        [SECTION.widgets]: sources.map((s, i) => numberWidgetBlob(s, i)),
+        [SECTION.imageLists]: lists(),
+        [SECTION.widgets]: widgets(),
+      },
+      {
+        [SECTION.elements]: [...digitElements(), elementBlob(TARGET.image, 0, 0, textTop)],
+        [SECTION.images]: [imageBlob(toRgb565(cropRows(input.background, textTop)))],
+        [SECTION.imageLists]: lists(),
+        [SECTION.widgets]: widgets(),
       },
     ],
   });

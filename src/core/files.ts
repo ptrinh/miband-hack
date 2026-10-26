@@ -1,6 +1,7 @@
 import { unzipSync } from 'fflate';
 import { cstring, readU32le } from './bytes';
 import { t } from '../i18n';
+import { checkWatchfaceV2 } from '../watchface/check';
 
 // Ported from Gadgetbridge XiaomiFWHelper (AGPL-3.0).
 
@@ -67,6 +68,8 @@ function parseWatchfaceV2(fw: Uint8Array): ParsedFile | null {
   if (fw.length < 0x80 || fw[0] !== 0x5a || fw[1] !== 0xa5) return null;
   const id = cstring(fw, 0x28);
   if (!id || !/^\d+$/.test(id)) return { kind: 'unsupported', bytes: fw, reason: t('errFaceNoId') };
+  const broken = checkWatchfaceV2(fw);
+  if (broken) return { kind: 'unsupported', bytes: fw, reason: t('errFaceBroken', { why: broken }) };
   let name: string | null;
   if (fw[0x68] === 0xff && fw[0x69] === 0xff && fw[0x6a] === 0xff && fw[0x6b] === 0xff) {
     name = extractLocalizedName(fw, readU32le(fw, 0x74), readU32le(fw, 0x78));

@@ -181,6 +181,7 @@ describe('file parsing', () => {
     wf[1] = 0xa5;
     wf.set(new TextEncoder().encode('12345678'), 0x28);
     wf.set(new TextEncoder().encode('My Face'), 0x68);
+    wf[0x1c] = 1; // one face, every section empty
     const f = parseFile(wf);
     expect(f).toMatchObject({ kind: 'watchface', id: '12345678', name: 'My Face' });
   });

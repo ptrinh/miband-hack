@@ -12,9 +12,9 @@ import { BridgeTransport } from './transport/bridge';
 
 // The Mac helper is a developer tool: offer it only on a locally served page, not on miband.trinh.uk.
 const SHOW_BRIDGE = ['localhost', '127.0.0.1'].includes(location.hostname);
-// The Band 8 face builder is unproven on a real band (2026-10-26: the band dropped its binding after the first
-// install), so the public page shows it only with ?face.
-const SHOW_FACE_MAKER = SHOW_BRIDGE || new URLSearchParams(location.search).has('face');
+// The Band 8 face builder bricked a band on its first real install (2026-10-26: a face without the AOD face),
+// so it stays a local developer tool until a build of it is proven on a band.
+const SHOW_FACE_MAKER = SHOW_BRIDGE;
 import { applyI18n, getLang, LANGS, pick, setLang, t } from './i18n';
 import { buildChecklistRpk, buildFlashcardsRpk, buildNotesRpk, customVersionCode, type Note } from './rpk';
 import { bindImport, downloadJson, loadStored, saveStored } from './custom-editor';

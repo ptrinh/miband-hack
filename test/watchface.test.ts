@@ -4,6 +4,7 @@ import { gunzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { parseFile } from '../src/core/files';
 import { BAND8, band8FaceId, buildBand8Face, type Rgba } from '../src/watchface/band8';
+import { checkWatchfaceV2 } from '../src/watchface/check';
 import {
   decompressPixels,
   imageBlob,
@@ -126,10 +127,16 @@ describe('Band 8 face builder', () => {
     expect(parsed.name).toBe('KHOI TRINH');
   });
 
-  it('has one face with the background, four time widgets and their digit lists', () => {
+  it('has the normal and the always-on face, each with its own digit lists', () => {
     expect(bin.length % 4).toBe(0);
     expect([...bin.subarray(0, 4)]).toEqual([0x5a, 0xa5, 0x34, 0x12]);
-    expect(bin[0x1c]).toBe(1);
+    // Two faces, as both known-good Band 8 faces: one face stopped a band from booting.
+    expect(bin[0x1c]).toBe(2);
+    expect(checkWatchfaceV2(bin)).toBeNull();
+    const aod = unpack(bin).faces[1];
+    expect(aod[0].map((e) => u32(e, 0) >>> 24)).toEqual([7, 7, 7, 7, 2]);
+    expect(aod[3].length).toBe(4);
+    expect([image(aod[2][0]).width, image(aod[2][0]).height]).toEqual([192, 490 - 296]);
     const { faces, preview } = unpack(bin);
     const face = faces[0];
     expect(face[0].map((e) => u32(e, 0) >>> 24)).toEqual([2, 7, 7, 7, 7]);
@@ -148,6 +155,23 @@ describe('Band 8 face builder', () => {
     // BGRA order: the orange bar's first pixel.
     expect([...f3.pixels.subarray(20 * 4, 20 * 4 + 4)]).toEqual([46, 176, 255, 255]);
     expect([image(preview).width, image(preview).height]).toEqual([122, 310]);
+  });
+
+  it('passes the structural check, as the official sample does', () => {
+    expect(checkWatchfaceV2(sample)).toBeNull();
+  });
+
+  it('refuses files whose tables or images do not hold together', () => {
+    const outside = bin.slice();
+    new DataView(outside.buffer).setUint32(0xa8 + 12, outside.length, true); // element table past the end
+    expect(checkWatchfaceV2(outside)).toMatch(/outside the file/);
+    const { faces } = unpack(bin);
+    const imgOff = new DataView(bin.buffer).getUint32(new DataView(bin.buffer).getUint32(0xa8 + 12 + 8 * 2, true) + 8, true);
+    const short = bin.slice();
+    new DataView(short.buffer).setUint16(imgOff + 6, 489, true); // background one row shorter than its pixels
+    expect(checkWatchfaceV2(short)).toMatch(/image 0/);
+    expect(faces.length).toBe(2);
+    expect(parseFile(short).kind).toBe('unsupported');
   });
 
   it('gives each design its own stable 9-digit id', () => {

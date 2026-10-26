@@ -22,6 +22,7 @@ import { type Command, decodeCommand, encodeCommand } from './core/proto';
 import { deferred, type Link } from './protocol/link';
 import { ActivityAssembler, checkFile, compareFileIds, encodeFileId, type FileId, fileIdKey, type HealthFile, parseFileIdList, sameFileId } from './health/files';
 import { t } from './i18n';
+import { watchfaceFaceCount } from './watchface/check';
 
 // Command types / subtypes, from Gadgetbridge's Xiaomi*Service classes (AGPL-3.0).
 const SYSTEM = 2;
@@ -558,6 +559,8 @@ export class XiaomiDevice {
   }
 
   private async installWatchface(file: Extract<ParsedFile, { kind: 'watchface' }>, onProgress: (pct: number, stage: string) => void): Promise<void> {
+    // A Mi Band 8 stopped booting after a face without the always-on (AOD) face (2026-10-26).
+    if (this.isBand8 && watchfaceFaceCount(file.bytes) !== 2) throw new Error(t('errFaceNoAod'));
     onProgress(0, t('stRequesting'));
     const reply = await this.request(
       { type: WATCHFACE, subtype: WF_INSTALL, watchface: { watchfaceInstallStart: { id: file.id, size: file.bytes.length } } },
