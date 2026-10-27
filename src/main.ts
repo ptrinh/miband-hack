@@ -1309,7 +1309,8 @@ $('btn-qr-cancel').onclick = () => stopQr();
 
 // --------------------------------------------------------------- PWA ---
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+// Built pages only: the dev server's files change on every edit.
+if ('serviceWorker' in navigator && window.isSecureContext && !import.meta.env.DEV) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 let installPrompt: (Event & { prompt: () => Promise<void> }) | null = null;
