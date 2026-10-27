@@ -34,7 +34,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div class="wrap">
   <header class="hero">
     <div class="brand">
-      <div class="band-mark" aria-hidden="true"></div>
+      <img class="logo" src="logo.svg" width="56" height="56" alt="" />
       <h1>MiBand Hack<small data-i18n="subtitle"></small></h1>
     </div>
     <div class="row">
